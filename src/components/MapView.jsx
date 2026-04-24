@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   createMap, loadPinImage, maplibregl,
   allParcelsGeoJson, accessPointsGeoJson, fitToFeatures, colorForOwner,
+  setBasemap,
 } from '../lib/maplibre-setup.js';
+import { getBasemap, setBasemapPref } from '../lib/identity.js';
 
 export default function MapView({
   project, owners, accessPoints,
@@ -12,6 +14,7 @@ export default function MapView({
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const readyRef = useRef(false);
+  const [basemap, setBasemapState] = useState(getBasemap());
 
   // Init map once
   useEffect(() => {
@@ -66,6 +69,9 @@ export default function MapView({
 
       readyRef.current = true;
 
+      // Apply persisted basemap choice
+      setBasemap(map, basemap);
+
       // Initial fit
       const gj = allParcelsGeoJson(owners);
       map.getSource('parcels').setData(gj);
@@ -103,5 +109,25 @@ export default function MapView({
     };
   }, [dropPinMode, onMapTap]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  const cycleBasemap = () => {
+    const next = basemap === 'satellite' ? 'streets' : 'satellite';
+    setBasemapState(next);
+    setBasemapPref(next);
+    if (mapRef.current) setBasemap(mapRef.current, next);
+  };
+
+  return (
+    <div className="relative w-full h-full">
+      <div ref={containerRef} className="w-full h-full" />
+      <button
+        type="button"
+        onClick={cycleBasemap}
+        title={basemap === 'satellite' ? 'Switch to streets' : 'Switch to satellite'}
+        className="absolute right-3 bottom-24 z-10 bg-brandSurface/95 border border-brandBorder rounded-lg px-3 py-2 text-sm text-white shadow-lg flex items-center gap-2 hover:border-landGreen safe-bottom"
+        style={{ backdropFilter: 'blur(6px)' }}
+      >
+        {basemap === 'satellite' ? '🗺️ Streets' : '🛰️ Satellite'}
+      </button>
+    </div>
+  );
 }

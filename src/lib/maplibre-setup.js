@@ -4,6 +4,8 @@ import maplibregl from 'maplibre-gl';
 // Replace with your preferred source (e.g., MapTiler / protomaps) before production.
 // Carto Voyager basemap — free, no API key, allows hotlinking.
 // Built on OpenStreetMap data.
+// Two basemap options: Carto Voyager (streets) and Esri World Imagery (satellite).
+// Both are free, no API key. Esri Imagery allows hotlinking up to a fair-use threshold.
 const OSM_STYLE = {
   version: 8,
   sources: {
@@ -18,9 +20,36 @@ const OSM_STYLE = {
       tileSize: 256,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     },
+    'esri-imagery': {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: 'Tiles &copy; <a href="https://www.esri.com">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    },
   },
-  layers: [{ id: 'carto-voyager', type: 'raster', source: 'carto-voyager' }],
+  layers: [
+    { id: 'carto-voyager', type: 'raster', source: 'carto-voyager' },
+    { id: 'esri-imagery', type: 'raster', source: 'esri-imagery', layout: { visibility: 'none' } },
+  ],
 };
+
+// Toggle which basemap layer is visible. Safe to call before style is loaded.
+export function setBasemap(map, name) {
+  if (!map || !map.getLayer) return;
+  const apply = () => {
+    if (!map.getLayer('carto-voyager') || !map.getLayer('esri-imagery')) return;
+    if (name === 'satellite') {
+      map.setLayoutProperty('carto-voyager', 'visibility', 'none');
+      map.setLayoutProperty('esri-imagery', 'visibility', 'visible');
+    } else {
+      map.setLayoutProperty('carto-voyager', 'visibility', 'visible');
+      map.setLayoutProperty('esri-imagery', 'visibility', 'none');
+    }
+  };
+  if (map.isStyleLoaded()) apply();
+  else map.once('idle', apply);
+}
 
 // Pin icon as an inline SVG data URL
 const PIN_SVG = `

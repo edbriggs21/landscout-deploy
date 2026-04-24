@@ -13,3 +13,11 @@ export function getRole() {
 export function setRole(role) {
   try { localStorage.setItem(ROLE_KEY, role); } catch {}
 }
+
+const BASEMAP_KEY = 'deploy_basemap';
+export function getBasemap() {
+  try { return localStorage.getItem(BASEMAP_KEY) || 'streets'; } catch { return 'streets'; }
+}
+export function setBasemapPref(name) {
+  try { localStorage.setItem(BASEMAP_KEY, name); } catch {}
+}

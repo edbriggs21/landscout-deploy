@@ -2,17 +2,24 @@ import maplibregl from 'maplibre-gl';
 
 // Free tile source — no API key needed.
 // Replace with your preferred source (e.g., MapTiler / protomaps) before production.
+// Carto Voyager basemap — free, no API key, allows hotlinking.
+// Built on OpenStreetMap data.
 const OSM_STYLE = {
   version: 8,
   sources: {
-    osm: {
+    'carto-voyager': {
       type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      ],
       tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     },
   },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+  layers: [{ id: 'carto-voyager', type: 'raster', source: 'carto-voyager' }],
 };
 
 // Pin icon as an inline SVG data URL

@@ -14,6 +14,7 @@ export default function MapView({
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const readyRef = useRef(false);
+  const didFitRef = useRef(false);
   const [basemap, setBasemapState] = useState(getBasemap());
 
   // Init map once
@@ -72,11 +73,14 @@ export default function MapView({
       // Apply persisted basemap choice
       setBasemap(map, basemap);
 
-      // Initial fit
+      // Initial data + fit
       const gj = allParcelsGeoJson(owners);
       map.getSource('parcels').setData(gj);
       map.getSource('access-points').setData(accessPointsGeoJson(accessPoints));
-      if (gj.features.length) fitToFeatures(map, gj);
+      if (gj.features.length) {
+        fitToFeatures(map, gj);
+        didFitRef.current = true;
+      }
     });
 
     return () => {
@@ -89,8 +93,14 @@ export default function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
-    map.getSource('parcels').setData(allParcelsGeoJson(owners));
+    const gj = allParcelsGeoJson(owners);
+    map.getSource('parcels').setData(gj);
     map.getSource('access-points').setData(accessPointsGeoJson(accessPoints));
+    // If the map loaded before owners arrived, do the initial fit here once
+    if (!didFitRef.current && gj.features.length) {
+      fitToFeatures(map, gj);
+      didFitRef.current = true;
+    }
   }, [owners, accessPoints]);
 
   // Handle drop-pin tap mode — bind a one-shot click listener

@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import * as api from '../api.js';
 
 function Readiness({ owner, code, name, onChanged }) {
-  const [readiness, setReadiness] = useState(owner.deployment_readiness || 'ready');
+  // null/undefined readiness means "unset". Tap-again-to-deselect lets scouts reset.
+  const [readiness, setReadiness] = useState(owner.deployment_readiness || null);
   const [notes, setNotes] = useState(owner.deployment_readiness_notes || '');
   const [saving, setSaving] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [err, setErr] = useState('');
 
   const save = async () => {
@@ -16,6 +18,19 @@ function Readiness({ owner, code, name, onChanged }) {
     finally { setSaving(false); }
   };
 
+  const clearReadiness = async () => {
+    if (!confirm('Clear readiness back to "not yet scouted"?')) return;
+    setClearing(true); setErr('');
+    try {
+      // Send readiness=null to wipe the field server-side
+      await api.updateReadiness({ code, owner_id: owner.id, readiness: null, notes: '', updated_by: name });
+      setReadiness(null);
+      setNotes('');
+      await onChanged();
+    } catch (e) { setErr(e.message); }
+    finally { setClearing(false); }
+  };
+
   const opts = [
     { v: 'ready', label: 'Ready', desc: 'Good to go', color: 'bg-dataBlue/20 border-dataBlue' },
     { v: 'needs_work', label: 'Needs work', desc: 'Fixable issue', color: 'bg-yellow-400/10 border-yellow-400' },
@@ -24,10 +39,15 @@ function Readiness({ owner, code, name, onChanged }) {
 
   return (
     <div>
-      <div className="text-sm text-slate-400 mb-2">Readiness</div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm text-slate-400">Readiness</div>
+        {readiness === null && <div className="text-xs text-slate-500">(not yet scouted)</div>}
+      </div>
       <div className="grid grid-cols-3 gap-2 mb-3">
         {opts.map(o => (
-          <button key={o.v} onClick={() => setReadiness(o.v)}
+          <button
+            key={o.v}
+            onClick={() => setReadiness(prev => prev === o.v ? null : o.v)}
             className={
               'rounded-lg p-3 border text-left ' +
               (readiness === o.v ? o.color : 'border-brandBorder bg-brandBg')
@@ -46,10 +66,23 @@ function Readiness({ owner, code, name, onChanged }) {
         className="w-full bg-brandBg border border-brandBorder rounded-lg p-3 text-sm text-white"
       />
       {err && <div className="mt-2 text-sm text-red-400">{err}</div>}
-      <button onClick={save} disabled={saving}
-        className="mt-3 bg-landGreen text-deepBlue font-semibold py-2 px-4 rounded-lg disabled:opacity-50">
-        {saving ? 'Saving…' : 'Save readiness'}
-      </button>
+      <div className="mt-3 flex gap-2 flex-wrap items-center">
+        <button
+          onClick={save}
+          disabled={saving || clearing || readiness === null}
+          title={readiness === null ? 'Pick a readiness value first, or use Clear to wipe' : ''}
+          className="bg-landGreen text-deepBlue font-semibold py-2 px-4 rounded-lg disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save readiness'}
+        </button>
+        {(owner.deployment_readiness || readiness) && (
+          <button
+            onClick={clearReadiness}
+            disabled={saving || clearing}
+            className="bg-brandBg border border-brandBorder text-slate-300 py-2 px-4 rounded-lg text-sm disabled:opacity-50">
+            {clearing ? 'Clearing…' : 'Clear'}
+          </button>
+        )}
+      </div>
       {owner.deployment_readiness_updated_at && (
         <div className="mt-2 text-xs text-slate-500">
           Last updated {new Date(owner.deployment_readiness_updated_at).toLocaleString()} by {owner.deployment_readiness_updated_by || '—'}

@@ -5,9 +5,11 @@ import {
   setBasemap,
 } from '../lib/maplibre-setup.js';
 import { getBasemap, setBasemapPref } from '../lib/identity.js';
+import LayerPanel from './LayerPanel.jsx';
 
 export default function MapView({
   project, owners, accessPoints,
+  layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
   selectedOwnerId, dropPinMode,
   onSelectOwner, onMapTap,
 }) {
@@ -103,6 +105,102 @@ export default function MapView({
     }
   }, [owners, accessPoints]);
 
+  // Sync overlay layers (LandScout overlay_layers).
+  // For each layer that is visible AND has its geojson loaded, ensure a MapLibre
+  // source + layer exists with type-appropriate styling. Hide/remove otherwise.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !readyRef.current) return;
+
+    const visibleSet = visibleLayerIds || new Set();
+
+    for (const meta of layers) {
+      const sourceId = `ovl-${meta.id}`;
+      const layerId = `ovl-${meta.id}-render`;
+      const strokeId = `ovl-${meta.id}-stroke`;
+      const isVisible = visibleSet.has(meta.id) && !!loadedLayers[meta.id];
+
+      // Add or update source when geojson is available
+      if (loadedLayers[meta.id]) {
+        if (!map.getSource(sourceId)) {
+          try {
+            map.addSource(sourceId, { type: 'geojson', data: loadedLayers[meta.id] });
+          } catch (_) { /* ignore double-add */ }
+        }
+      }
+
+      // Determine layer type
+      const gtype = (meta.geometry_type || '').toLowerCase();
+      const color = meta.color || '#9ACD32';
+      const stroke = meta.stroke_color || color;
+      const lineWidth = Number(meta.line_width) || 1.5;
+      const fillOpacity = Number(meta.fill_opacity ?? 0.4);
+      const strokeOpacity = Number(meta.stroke_opacity ?? 1);
+      const pointRadius = Number(meta.point_size) || 5;
+      const psColor = meta.point_stroke_color || stroke;
+      const psWidth = Number(meta.point_stroke_width) || 1;
+      const minzoom = Number(meta.zoom_min) || 0;
+      const maxzoom = meta.zoom_max != null ? Number(meta.zoom_max) : 24;
+
+      // Build MapLibre layer once
+      if (loadedLayers[meta.id] && !map.getLayer(layerId)) {
+        try {
+          if (gtype.includes('point')) {
+            map.addLayer({
+              id: layerId, type: 'circle', source: sourceId,
+              minzoom, maxzoom,
+              paint: {
+                'circle-radius': pointRadius,
+                'circle-color': color,
+                'circle-stroke-color': psColor,
+                'circle-stroke-width': psWidth,
+                'circle-opacity': fillOpacity || 1,
+              },
+            }, 'parcels-fill');
+          } else if (gtype.includes('line')) {
+            map.addLayer({
+              id: layerId, type: 'line', source: sourceId,
+              minzoom, maxzoom,
+              paint: {
+                'line-color': color,
+                'line-width': lineWidth,
+                'line-opacity': strokeOpacity,
+              },
+            }, 'parcels-fill');
+          } else if (gtype.includes('polygon')) {
+            map.addLayer({
+              id: layerId, type: 'fill', source: sourceId,
+              minzoom, maxzoom,
+              paint: {
+                'fill-color': color,
+                'fill-opacity': fillOpacity,
+              },
+            }, 'parcels-fill');
+            map.addLayer({
+              id: strokeId, type: 'line', source: sourceId,
+              minzoom, maxzoom,
+              paint: {
+                'line-color': stroke,
+                'line-width': lineWidth,
+                'line-opacity': strokeOpacity,
+              },
+            }, 'parcels-fill');
+          }
+        } catch (e) {
+          console.warn('add overlay layer failed', meta.name, e);
+        }
+      }
+
+      // Toggle visibility
+      const setVis = (id) => {
+        if (!map.getLayer(id)) return;
+        map.setLayoutProperty(id, 'visibility', isVisible ? 'visible' : 'none');
+      };
+      setVis(layerId);
+      setVis(strokeId);
+    }
+  }, [layers, loadedLayers, visibleLayerIds]);
+
   // Handle drop-pin tap mode — bind a one-shot click listener
   useEffect(() => {
     const map = mapRef.current;
@@ -129,6 +227,11 @@ export default function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
+      <LayerPanel
+        layers={layers}
+        visibleLayerIds={visibleLayerIds || new Set()}
+        onToggle={onToggleLayer}
+      />
       <button
         type="button"
         onClick={cycleBasemap}

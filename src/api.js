@@ -67,3 +67,7 @@ export async function refreshPhotoUrls({ code, owner_id }) {
 export async function updateOpsInfo({ code, owner_id, ops_info_pending, updated_by }) {
   return postJson('deployment-update-ops-info', { code, owner_id, ops_info_pending, updated_by });
 }
+
+export async function fetchLayer({ code, layer_id }) {
+  return postJson('deployment-fetch-layer', { code, layer_id });
+}

@@ -1,8 +1,8 @@
+@import url('https://unpkg.com/maplibre-gl@4.7.0/dist/maplibre-gl.css');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://unpkg.com/maplibre-gl@4.7.0/dist/maplibre-gl.css');
 
 html, body, #root {
   height: 100%;

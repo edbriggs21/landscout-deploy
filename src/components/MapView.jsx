@@ -189,7 +189,7 @@ export default function MapView({
         let lng = o.geocoded_lng, lat = o.geocoded_lat;
         if (typeof lng !== 'number' || typeof lat !== 'number') {
           // Fallback to a coord pulled from the parcel geometry
-          const fc = allParcelsGeoJson({ ...o });
+          const fc = allParcelsGeoJson([o]);
           const f = fc.features[0];
           if (!f) return null;
           // crude centroid: first coord we find

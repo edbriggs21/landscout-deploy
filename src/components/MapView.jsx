@@ -16,8 +16,8 @@ export default function MapView({
   // (project already passed in but we now read project.deployment_start)
   const containerRef = useRef(null);
   const mapRef = useRef(null);
-  const readyRef = useRef(false);
   const didFitRef = useRef(false);
+  const [ready, setReady] = useState(false);
   const [basemap, setBasemapState] = useState(getBasemap());
 
   // Init map once
@@ -125,7 +125,7 @@ export default function MapView({
       map.on('mouseenter', 'parcels-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'parcels-fill', () => { map.getCanvas().style.cursor = ''; });
 
-      readyRef.current = true;
+      setReady(true);
 
       // Apply persisted basemap choice
       setBasemap(map, basemap);
@@ -172,10 +172,12 @@ export default function MapView({
     };
   }, []); // eslint-disable-line
 
-  // Refresh data layers when owners/accessPoints change
+  // Refresh data layers when owners/accessPoints change OR when the map first
+  // becomes ready. Includes 'ready' in the deps so the effect re-runs once the
+  // map's 'load' event fires.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !readyRef.current) return;
+    if (!map || !ready) return;
     const gj = allParcelsGeoJson(owners);
     map.getSource('parcels').setData(gj);
     map.getSource('access-points').setData(accessPointsGeoJson(accessPoints));
@@ -226,14 +228,14 @@ export default function MapView({
       fitToFeatures(map, gj);
       didFitRef.current = true;
     }
-  }, [owners, accessPoints, project]);
+  }, [owners, accessPoints, project, ready]);
 
   // Sync overlay layers (LandScout overlay_layers).
   // For each layer that is visible AND has its geojson loaded, ensure a MapLibre
   // source + layer exists with type-appropriate styling. Hide/remove otherwise.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !readyRef.current) return;
+    if (!map || !ready) return;
 
     const visibleSet = visibleLayerIds || new Set();
 
@@ -322,12 +324,12 @@ export default function MapView({
       setVis(layerId);
       setVis(strokeId);
     }
-  }, [layers, loadedLayers, visibleLayerIds]);
+  }, [layers, loadedLayers, visibleLayerIds, ready]);
 
   // Handle drop-pin tap mode — bind a one-shot click listener
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !readyRef.current) return;
+    if (!map || !ready) return;
     if (!dropPinMode) return;
     const handler = (e) => {
       onMapTap && onMapTap({ lng: e.lngLat.lng, lat: e.lngLat.lat });
@@ -338,7 +340,7 @@ export default function MapView({
       map.off('click', handler);
       map.getCanvas().style.cursor = '';
     };
-  }, [dropPinMode, onMapTap]);
+  }, [dropPinMode, onMapTap, ready]);
 
   const cycleBasemap = () => {
     const next = basemap === 'satellite' ? 'streets' : 'satellite';

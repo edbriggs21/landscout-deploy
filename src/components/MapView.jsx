@@ -61,6 +61,36 @@ export default function MapView({
         },
       });
 
+      // Schedule order labels — small numeric badges at parcel centroids
+      map.addSource('order-labels', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'order-labels-circle',
+        type: 'circle',
+        source: 'order-labels',
+        minzoom: 9,
+        paint: {
+          'circle-radius': 11,
+          'circle-color': '#0B2A4A',
+          'circle-stroke-color': '#9ACD32',
+          'circle-stroke-width': 2,
+        },
+      });
+      map.addLayer({
+        id: 'order-labels-text',
+        type: 'symbol',
+        source: 'order-labels',
+        minzoom: 9,
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-allow-overlap': true,
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+        },
+        paint: {
+          'text-color': '#FFFFFF',
+        },
+      });
+
       map.on('click', 'parcels-fill', (e) => {
         const f = e.features && e.features[0];
         if (f && f.properties && f.properties.owner_id) {
@@ -98,6 +128,39 @@ export default function MapView({
     const gj = allParcelsGeoJson(owners);
     map.getSource('parcels').setData(gj);
     map.getSource('access-points').setData(accessPointsGeoJson(accessPoints));
+
+    // Order labels for scheduled parcels (deployment_order != null)
+    const labelFeatures = (owners || [])
+      .filter(o => o.deployment_order != null)
+      .map(o => {
+        let lng = o.geocoded_lng, lat = o.geocoded_lat;
+        if (typeof lng !== 'number' || typeof lat !== 'number') {
+          // Fallback to a coord pulled from the parcel geometry
+          const fc = allParcelsGeoJson({ ...o });
+          const f = fc.features[0];
+          if (!f) return null;
+          // crude centroid: first coord we find
+          let pt = null;
+          const walk = (c) => {
+            if (pt || !Array.isArray(c)) return;
+            if (typeof c[0] === 'number') pt = c;
+            else c.forEach(walk);
+          };
+          walk(f.geometry && f.geometry.coordinates);
+          if (!pt) return null;
+          lng = pt[0]; lat = pt[1];
+        }
+        return {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [lng, lat] },
+          properties: { label: String(o.deployment_order), owner_id: o.id },
+        };
+      })
+      .filter(Boolean);
+    if (map.getSource('order-labels')) {
+      map.getSource('order-labels').setData({ type: 'FeatureCollection', features: labelFeatures });
+    }
+
     // If the map loaded before owners arrived, do the initial fit here once
     if (!didFitRef.current && gj.features.length) {
       fitToFeatures(map, gj);

@@ -71,3 +71,7 @@ export async function updateOpsInfo({ code, owner_id, ops_info_pending, updated_
 export async function fetchLayer({ code, layer_id }) {
   return postJson('deployment-fetch-layer', { code, layer_id });
 }
+
+export async function recomputeSchedule(code) {
+  return postJson('deployment-recompute-schedule', { code });
+}

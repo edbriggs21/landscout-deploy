@@ -4,11 +4,14 @@ import OpsInfoEdit from './OpsInfoEdit.jsx';
 import ScoutTools from './ScoutTools.jsx';
 import CrewTools from './CrewTools.jsx';
 import PhotoGallery from './PhotoGallery.jsx';
+import Schedule from './Schedule.jsx';
 
 export default function ParcelDetail({
   owner, role, code, name, project,
   accessPoints, photos,
+  owners,
   onClose, onChanged, onRequestDropPin,
+  onSelectOwner,
 }) {
   const [tab, setTab] = useState(role === 'crew' ? 'status' : 'readiness');
 
@@ -18,11 +21,13 @@ export default function ParcelDetail({
     { id: 'access', label: 'Access Points' },
     { id: 'photos', label: 'Photos' },
     { id: 'edit', label: 'Edit Ops' },
+    { id: 'schedule', label: 'Schedule' },
   ];
   const crewTabs = [
     { id: 'ops', label: 'Ops Info' },
     { id: 'intel', label: 'Scout Intel' },
     { id: 'status', label: 'Status' },
+    { id: 'schedule', label: 'Schedule' },
   ];
   const tabs = role === 'crew' ? crewTabs : scoutTabs;
 
@@ -94,6 +99,16 @@ export default function ParcelDetail({
           )}
           {role === 'crew' && tab === 'status' && (
             <CrewTools owner={owner} code={code} name={name} onChanged={onChanged} />
+          )}
+          {tab === 'schedule' && (
+            <Schedule
+              owners={owners}
+              role={role}
+              code={code}
+              onChanged={onChanged}
+              onSelectOwner={onSelectOwner}
+              currentOwnerId={owner.id}
+            />
           )}
         </div>
       </div>

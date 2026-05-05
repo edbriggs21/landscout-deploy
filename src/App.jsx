@@ -229,9 +229,11 @@ export default function App() {
           project={data.project}
           accessPoints={ownerAccessPoints}
           photos={ownerPhotos}
+          owners={data.owners}
           onClose={() => { setSelectedOwnerId(null); setDropPinMode(false); }}
           onChanged={refreshAfterWrite}
           onRequestDropPin={() => setDropPinMode(true)}
+          onSelectOwner={setSelectedOwnerId}
         />
       )}
 

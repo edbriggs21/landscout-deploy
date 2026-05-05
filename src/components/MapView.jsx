@@ -83,6 +83,7 @@ export default function MapView({
           'text-field': '★',
           'text-size': 18,
           'text-allow-overlap': true,
+          'text-font': ['Noto Sans Bold'],
         },
         paint: { 'text-color': '#0B2A4A' },
       });
@@ -110,11 +111,9 @@ export default function MapView({
           'text-field': ['get', 'label'],
           'text-size': 11,
           'text-allow-overlap': true,
-          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-font': ['Noto Sans Bold'],
         },
-        paint: {
-          'text-color': '#FFFFFF',
-        },
+        paint: { 'text-color': '#FFFFFF' },
       });
 
       map.on('click', 'parcels-fill', (e) => {

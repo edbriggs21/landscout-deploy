@@ -8,6 +8,7 @@ import maplibregl from 'maplibre-gl';
 // Both are free, no API key. Esri Imagery allows hotlinking up to a fair-use threshold.
 const OSM_STYLE = {
   version: 8,
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sources: {
     'carto-voyager': {
       type: 'raster',

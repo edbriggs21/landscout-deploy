@@ -134,6 +134,32 @@ export default function MapView({
       const gj = allParcelsGeoJson(owners);
       map.getSource('parcels').setData(gj);
       map.getSource('access-points').setData(accessPointsGeoJson(accessPoints));
+
+      // Seed start-point source from the project prop
+      if (project && project.deployment_start &&
+          typeof project.deployment_start.lat === 'number' &&
+          typeof project.deployment_start.lng === 'number') {
+        const sp = project.deployment_start;
+        map.getSource('start-point').setData({
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [sp.lng, sp.lat] },
+            properties: { label: sp.label || 'Start' },
+          }],
+        });
+      }
+
+      // Seed order-labels source from the owners prop
+      const initialLabels = (owners || [])
+        .filter(o => o.deployment_order != null && typeof o.geocoded_lng === 'number' && typeof o.geocoded_lat === 'number')
+        .map(o => ({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [o.geocoded_lng, o.geocoded_lat] },
+          properties: { label: String(o.deployment_order) },
+        }));
+      map.getSource('order-labels').setData({ type: 'FeatureCollection', features: initialLabels });
+
       if (gj.features.length) {
         fitToFeatures(map, gj);
         didFitRef.current = true;

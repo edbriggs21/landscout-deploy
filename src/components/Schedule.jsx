@@ -13,7 +13,26 @@ function haversineMi(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// Owner's parcel centroid — same logic as the server uses for routing.
+// Falls back to geocoded coords (billing address) only if no parcels.
 function ownerCenter(o) {
+  const raw = o.parcels_data;
+  const features = [];
+  if (raw) {
+    if (Array.isArray(raw)) features.push(...raw);
+    else if (raw.type === 'FeatureCollection' && Array.isArray(raw.features)) features.push(...raw.features);
+    else if (raw.type === 'Feature') features.push(raw);
+    else if (raw.type && raw.coordinates) features.push({ type: 'Feature', geometry: raw });
+  }
+  let sx = 0, sy = 0, n = 0;
+  const walk = (c) => {
+    if (!Array.isArray(c)) return;
+    if (typeof c[0] === 'number' && typeof c[1] === 'number') {
+      sx += c[0]; sy += c[1]; n++;
+    } else c.forEach(walk);
+  };
+  for (const f of features) walk(f.geometry && f.geometry.coordinates);
+  if (n > 0) return { lng: sx / n, lat: sy / n };
   if (typeof o.geocoded_lat === 'number' && typeof o.geocoded_lng === 'number') {
     return { lat: o.geocoded_lat, lng: o.geocoded_lng };
   }

@@ -13,6 +13,7 @@ export default function MapView({
   selectedOwnerId, dropPinMode,
   onSelectOwner, onMapTap,
 }) {
+  // (project already passed in but we now read project.deployment_start)
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const readyRef = useRef(false);
@@ -59,6 +60,31 @@ export default function MapView({
           'icon-allow-overlap': true,
           'icon-anchor': 'bottom',
         },
+      });
+
+      // Start-point marker (☆ icon)
+      map.addSource('start-point', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'start-point-circle',
+        type: 'circle',
+        source: 'start-point',
+        paint: {
+          'circle-radius': 14,
+          'circle-color': '#9ACD32',
+          'circle-stroke-color': '#0B2A4A',
+          'circle-stroke-width': 3,
+        },
+      });
+      map.addLayer({
+        id: 'start-point-text',
+        type: 'symbol',
+        source: 'start-point',
+        layout: {
+          'text-field': '★',
+          'text-size': 18,
+          'text-allow-overlap': true,
+        },
+        paint: { 'text-color': '#0B2A4A' },
       });
 
       // Schedule order labels — small numeric badges at parcel centroids
@@ -161,12 +187,21 @@ export default function MapView({
       map.getSource('order-labels').setData({ type: 'FeatureCollection', features: labelFeatures });
     }
 
+    // Start-point marker
+    if (map.getSource('start-point')) {
+      const sp = project && project.deployment_start;
+      const features = (sp && typeof sp.lat === 'number' && typeof sp.lng === 'number')
+        ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: [sp.lng, sp.lat] }, properties: { label: sp.label || 'Start' } }]
+        : [];
+      map.getSource('start-point').setData({ type: 'FeatureCollection', features });
+    }
+
     // If the map loaded before owners arrived, do the initial fit here once
     if (!didFitRef.current && gj.features.length) {
       fitToFeatures(map, gj);
       didFitRef.current = true;
     }
-  }, [owners, accessPoints]);
+  }, [owners, accessPoints, project]);
 
   // Sync overlay layers (LandScout overlay_layers).
   // For each layer that is visible AND has its geojson loaded, ensure a MapLibre

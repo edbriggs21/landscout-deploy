@@ -20,7 +20,7 @@ function ownerCenter(o) {
   return null;
 }
 
-export default function Schedule({ owners, role, code, onSelectOwner, onChanged, currentOwnerId }) {
+export default function Schedule({ owners, role, code, name, project, onSelectOwner, onChanged, currentOwnerId, onRequestPickStart }) {
   const [recomputing, setRecomputing] = useState(false);
   const [err, setErr] = useState('');
 
@@ -53,6 +53,41 @@ export default function Schedule({ owners, role, code, onSelectOwner, onChanged,
 
   const isReadOnly = role !== 'crew';
 
+  const start = project && project.deployment_start;
+  const [startBusy, setStartBusy] = useState(false);
+
+  const useGps = async () => {
+    if (!navigator.geolocation) { alert('Geolocation not supported on this device.'); return; }
+    setStartBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await api.setStartPoint({
+            code,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            label: `My location ±${Math.round(pos.coords.accuracy)}m`,
+            updated_by: name,
+          });
+          await onChanged();
+        } catch (e) { alert(e.message); }
+        finally { setStartBusy(false); }
+      },
+      (e) => { alert('Could not get GPS fix: ' + e.message); setStartBusy(false); },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
+
+  const clearStart = async () => {
+    if (!confirm('Reset start point to default (auto)?')) return;
+    setStartBusy(true);
+    try {
+      await api.setStartPoint({ code, clear: true, updated_by: name });
+      await onChanged();
+    } catch (e) { alert(e.message); }
+    finally { setStartBusy(false); }
+  };
+
   return (
     <div>
       {/* Stats strip */}
@@ -73,6 +108,45 @@ export default function Schedule({ owners, role, code, onSelectOwner, onChanged,
           <div className="text-slate-500 uppercase">Blocked</div>
           <div className="text-red-400 font-semibold text-lg">{blockedCount}</div>
         </div>
+      </div>
+
+      {/* Start point card */}
+      <div className="bg-brandBg border border-brandBorder rounded p-3 mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-sm text-slate-400">Start point</div>
+          {!isReadOnly && start && (
+            <button onClick={clearStart} disabled={startBusy} className="text-xs text-slate-400 hover:text-red-400 disabled:opacity-50">Reset</button>
+          )}
+        </div>
+        {start ? (
+          <div>
+            <div className="text-white text-sm">{start.label || `${start.lat.toFixed(5)}, ${start.lng.toFixed(5)}`}</div>
+            <div className="text-xs text-slate-500">
+              {start.lat.toFixed(5)}, {start.lng.toFixed(5)}
+              {start.updated_by && <> · set by {start.updated_by}</>}
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500">Auto (most recent deploy, or southernmost parcel if none yet)</div>
+        )}
+        {!isReadOnly && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              onClick={useGps}
+              disabled={startBusy}
+              className="text-xs bg-brandSurface border border-brandBorder rounded px-2 py-1 text-slate-200 hover:border-landGreen disabled:opacity-50"
+            >
+              {startBusy ? '…' : '📍 Use my location'}
+            </button>
+            <button
+              onClick={() => onRequestPickStart && onRequestPickStart()}
+              disabled={startBusy}
+              className="text-xs bg-brandSurface border border-brandBorder rounded px-2 py-1 text-slate-200 hover:border-landGreen disabled:opacity-50"
+            >
+              🗺️ Pick on map
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-2">

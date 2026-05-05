@@ -12,6 +12,7 @@ export default function ParcelDetail({
   owners,
   onClose, onChanged, onRequestDropPin,
   onSelectOwner,
+  onRequestPickStart,
 }) {
   const [tab, setTab] = useState(role === 'crew' ? 'status' : 'readiness');
 
@@ -105,9 +106,12 @@ export default function ParcelDetail({
               owners={owners}
               role={role}
               code={code}
+              name={name}
+              project={project}
               onChanged={onChanged}
               onSelectOwner={onSelectOwner}
               currentOwnerId={owner.id}
+              onRequestPickStart={onRequestPickStart}
             />
           )}
         </div>

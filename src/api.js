@@ -75,3 +75,7 @@ export async function fetchLayer({ code, layer_id }) {
 export async function recomputeSchedule(code) {
   return postJson('deployment-recompute-schedule', { code });
 }
+
+export async function setStartPoint({ code, lat, lng, label, updated_by, clear }) {
+  return postJson('deployment-set-start-point', { code, lat, lng, label, updated_by, clear });
+}

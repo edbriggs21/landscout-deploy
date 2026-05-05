@@ -36,6 +36,8 @@ export default function App() {
 
   // For "tap on map to drop a pin" mode
   const [dropPinMode, setDropPinMode] = useState(false);
+  // For "tap on map to set schedule start point" mode
+  const [pickStartMode, setPickStartMode] = useState(false);
 
   const doValidate = useCallback(async (c) => {
     setLoading(true); setError('');
@@ -189,9 +191,24 @@ export default function App() {
         visibleLayerIds={visibleLayerIds || new Set()}
         onToggleLayer={toggleLayer}
         selectedOwnerId={selectedOwnerId}
-        dropPinMode={dropPinMode}
+        dropPinMode={dropPinMode || pickStartMode}
         onSelectOwner={setSelectedOwnerId}
         onMapTap={async ({ lng, lat }) => {
+          if (pickStartMode) {
+            try {
+              await api.setStartPoint({
+                code, lat, lng,
+                label: `Picked: ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+                updated_by: name,
+              });
+              setPickStartMode(false);
+              refreshAfterWrite();
+            } catch (e) {
+              alert(e.message);
+              setPickStartMode(false);
+            }
+            return;
+          }
           if (!dropPinMode || !selectedOwnerId) return;
           try {
             await api.addAccessPoint({
@@ -234,16 +251,17 @@ export default function App() {
           onChanged={refreshAfterWrite}
           onRequestDropPin={() => setDropPinMode(true)}
           onSelectOwner={setSelectedOwnerId}
+          onRequestPickStart={() => { setSelectedOwnerId(null); setPickStartMode(true); }}
         />
       )}
 
       {/* Drop-pin hint banner */}
-      {dropPinMode && (
+      {(dropPinMode || pickStartMode) && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 bg-landGreen text-deepBlue text-sm font-medium px-4 py-2 rounded-full shadow-lg">
-          Tap the map to drop a pin
+          {pickStartMode ? 'Tap the map to set the route start point' : 'Tap the map to drop a pin'}
           <button
             className="ml-3 text-deepBlue/70 underline"
-            onClick={() => setDropPinMode(false)}
+            onClick={() => { setDropPinMode(false); setPickStartMode(false); }}
           >cancel</button>
         </div>
       )}

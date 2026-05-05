@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   createMap, loadPinImage, maplibregl,
   allParcelsGeoJson, accessPointsGeoJson, fitToFeatures, colorForOwner,
-  setBasemap,
+  setBasemap, parcelCentroid,
 } from '../lib/maplibre-setup.js';
 import { getBasemap, setBasemapPref } from '../lib/identity.js';
 import LayerPanel from './LayerPanel.jsx';
@@ -150,14 +150,20 @@ export default function MapView({
         });
       }
 
-      // Seed order-labels source from the owners prop
+      // Seed order-labels source from the owners prop. Use parcel centroid
+      // (same as routing) — never the geocoded billing address.
       const initialLabels = (owners || [])
-        .filter(o => o.deployment_order != null && typeof o.geocoded_lng === 'number' && typeof o.geocoded_lat === 'number')
-        .map(o => ({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [o.geocoded_lng, o.geocoded_lat] },
-          properties: { label: String(o.deployment_order) },
-        }));
+        .filter(o => o.deployment_order != null)
+        .map(o => {
+          const c = parcelCentroid(o);
+          if (!c) return null;
+          return {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: c },
+            properties: { label: String(o.deployment_order) },
+          };
+        })
+        .filter(Boolean);
       map.getSource('order-labels').setData({ type: 'FeatureCollection', features: initialLabels });
 
       if (gj.features.length) {
@@ -182,30 +188,16 @@ export default function MapView({
     map.getSource('parcels').setData(gj);
     map.getSource('access-points').setData(accessPointsGeoJson(accessPoints));
 
-    // Order labels for scheduled parcels (deployment_order != null)
+    // Order labels for scheduled parcels — placed at the PARCEL centroid,
+    // matching how the route is computed. Never use geocoded billing address.
     const labelFeatures = (owners || [])
       .filter(o => o.deployment_order != null)
       .map(o => {
-        let lng = o.geocoded_lng, lat = o.geocoded_lat;
-        if (typeof lng !== 'number' || typeof lat !== 'number') {
-          // Fallback to a coord pulled from the parcel geometry
-          const fc = allParcelsGeoJson([o]);
-          const f = fc.features[0];
-          if (!f) return null;
-          // crude centroid: first coord we find
-          let pt = null;
-          const walk = (c) => {
-            if (pt || !Array.isArray(c)) return;
-            if (typeof c[0] === 'number') pt = c;
-            else c.forEach(walk);
-          };
-          walk(f.geometry && f.geometry.coordinates);
-          if (!pt) return null;
-          lng = pt[0]; lat = pt[1];
-        }
+        const c = parcelCentroid(o);
+        if (!c) return null;
         return {
           type: 'Feature',
-          geometry: { type: 'Point', coordinates: [lng, lat] },
+          geometry: { type: 'Point', coordinates: c },
           properties: { label: String(o.deployment_order), owner_id: o.id },
         };
       })

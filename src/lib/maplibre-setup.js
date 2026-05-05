@@ -159,3 +159,31 @@ export function fitToFeatures(map, featureCollection) {
 }
 
 export { maplibregl };
+
+// Centroid of an owner's parcel polygons (in [lng, lat]). Falls back to
+// geocoded address only if there's no parcels_data. Used for placing
+// schedule badges and for any UI that needs the *parcel* location, not
+// the owner's billing address.
+export function parcelCentroid(owner) {
+  const raw = owner && owner.parcels_data;
+  const features = [];
+  if (raw) {
+    if (Array.isArray(raw)) features.push(...raw);
+    else if (raw.type === 'FeatureCollection' && Array.isArray(raw.features)) features.push(...raw.features);
+    else if (raw.type === 'Feature') features.push(raw);
+    else if (raw.type && raw.coordinates) features.push({ type: 'Feature', geometry: raw });
+  }
+  let sx = 0, sy = 0, n = 0;
+  const walk = (c) => {
+    if (!Array.isArray(c)) return;
+    if (typeof c[0] === 'number' && typeof c[1] === 'number') {
+      sx += c[0]; sy += c[1]; n++;
+    } else c.forEach(walk);
+  };
+  for (const f of features) walk(f.geometry && f.geometry.coordinates);
+  if (n > 0) return [sx / n, sy / n];
+  if (owner && typeof owner.geocoded_lng === 'number' && typeof owner.geocoded_lat === 'number') {
+    return [owner.geocoded_lng, owner.geocoded_lat];
+  }
+  return null;
+}

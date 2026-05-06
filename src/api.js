@@ -79,3 +79,11 @@ export async function recomputeSchedule(code) {
 export async function setStartPoint({ code, lat, lng, label, updated_by, clear }) {
   return postJson('deployment-set-start-point', { code, lat, lng, label, updated_by, clear });
 }
+
+export async function reorderSchedule({ code, ordered_ids, updated_by }) {
+  return postJson('deployment-reorder-schedule', { code, ordered_ids, updated_by });
+}
+
+export async function resetSchedule({ code, updated_by }) {
+  return postJson('deployment-reset-schedule', { code, updated_by });
+}

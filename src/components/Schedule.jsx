@@ -41,6 +41,8 @@ function ownerCenter(o) {
 
 export default function Schedule({ owners, role, code, name, project, onSelectOwner, onChanged, currentOwnerId, onRequestPickStart }) {
   const [recomputing, setRecomputing] = useState(false);
+  const [reordering, setReordering] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [err, setErr] = useState('');
 
   // Derive the schedule list from current owners + their deployment_order
@@ -68,6 +70,32 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
       await onChanged();
     } catch (e) { setErr(e.message); }
     finally { setRecomputing(false); }
+  };
+
+  // Move item at index `idx` by `delta` positions (e.g. -1 = up, +1 = down).
+  // Builds the new full ordered_ids array and pushes to the server.
+  const moveItem = async (idx, delta) => {
+    const newIdx = idx + delta;
+    if (newIdx < 0 || newIdx >= items.length) return;
+    setReordering(true); setErr('');
+    try {
+      const ordered_ids = items.map(it => it.owner.id);
+      const [moved] = ordered_ids.splice(idx, 1);
+      ordered_ids.splice(newIdx, 0, moved);
+      await api.reorderSchedule({ code, ordered_ids, updated_by: name });
+      await onChanged();
+    } catch (e) { setErr(e.message); }
+    finally { setReordering(false); }
+  };
+
+  const resetToAuto = async () => {
+    if (!confirm('Restore the auto-computed schedule? Your manual reordering will be lost.')) return;
+    setResetting(true); setErr('');
+    try {
+      await api.resetSchedule({ code, updated_by: name });
+      await onChanged();
+    } catch (e) { setErr(e.message); }
+    finally { setResetting(false); }
   };
 
   const isReadOnly = role !== 'crew';
@@ -168,9 +196,25 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
         )}
       </div>
 
+      {/* Manual-mode banner */}
+      {project && project.schedule_manual && (
+        <div className="bg-yellow-400/10 border border-yellow-400/40 rounded p-2 mb-2 flex items-center justify-between gap-2">
+          <div className="text-xs text-yellow-200">
+            <strong>Manual order.</strong> Auto-recompute paused.
+            {project.schedule_manual_updated_by && <span className="text-yellow-300/70"> · set by {project.schedule_manual_updated_by}</span>}
+          </div>
+          {!isReadOnly && (
+            <button onClick={resetToAuto} disabled={resetting}
+              className="text-xs bg-brandBg border border-brandBorder rounded px-2 py-1 text-slate-200 hover:border-landGreen disabled:opacity-50">
+              {resetting ? '…' : '↻ Restore auto-schedule'}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-2">
-        <div className="text-sm text-slate-400">Recommended route</div>
-        {!isReadOnly && (
+        <div className="text-sm text-slate-400">{project && project.schedule_manual ? 'Manual route' : 'Recommended route'}</div>
+        {!isReadOnly && !(project && project.schedule_manual) && (
           <button onClick={recompute} disabled={recomputing}
             className="text-xs bg-brandBg border border-brandBorder rounded px-2 py-1 text-slate-300 hover:border-landGreen disabled:opacity-50">
             {recomputing ? 'Recomputing…' : '↻ Recompute'}
@@ -192,11 +236,13 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
                           : owner.deployment_readiness === 'needs_work' ? '🟠 needs work'
                           : owner.deployment_readiness === 'ready' ? '🔵 ready'
                           : '⚪ unscouted';
+            const canUp = idx > 0;
+            const canDown = idx < items.length - 1;
             return (
-              <li key={owner.id}>
+              <li key={owner.id} className={`flex gap-1 items-stretch rounded
+                ${isCur ? 'bg-landGreen/15 border border-landGreen' : 'bg-brandBg border border-brandBorder'}`}>
                 <button onClick={() => onSelectOwner && onSelectOwner(owner.id)}
-                  className={`w-full flex gap-3 p-2 rounded text-left text-sm
-                    ${isCur ? 'bg-landGreen/15 border border-landGreen' : 'bg-brandBg border border-brandBorder hover:border-slate-500'}`}>
+                  className="flex-1 min-w-0 flex gap-3 p-2 text-left text-sm hover:bg-brandBg">
                   <span className={`flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold
                     ${idx === 0 ? 'bg-landGreen text-deepBlue' : 'bg-brandBorder text-white'}`}>
                     {owner.deployment_order}
@@ -209,6 +255,22 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
                     </div>
                   </span>
                 </button>
+                {!isReadOnly && (
+                  <div className="flex flex-col border-l border-brandBorder/60">
+                    <button
+                      onClick={() => moveItem(idx, -1)}
+                      disabled={!canUp || reordering}
+                      title="Move up"
+                      className="px-2 flex-1 text-slate-300 hover:text-landGreen disabled:opacity-25 text-xs"
+                    >▲</button>
+                    <button
+                      onClick={() => moveItem(idx, +1)}
+                      disabled={!canDown || reordering}
+                      title="Move down"
+                      className="px-2 flex-1 text-slate-300 hover:text-landGreen disabled:opacity-25 text-xs border-t border-brandBorder/40"
+                    >▼</button>
+                  </div>
+                )}
               </li>
             );
           })}

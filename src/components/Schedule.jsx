@@ -44,6 +44,7 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
   const [reordering, setReordering] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [err, setErr] = useState('');
+  const [query, setQuery] = useState('');
 
   // Derive the schedule list from current owners + their deployment_order
   const items = useMemo(() => {
@@ -58,6 +59,16 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
       return { owner: o, distMi };
     });
   }, [owners]);
+
+  // Search-filtered view of the route list. Empty query -> show all.
+  const visibleItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(({ owner }) => {
+      const name = (owner.owner_name || owner.name || '').toLowerCase();
+      return name.includes(q);
+    });
+  }, [items, query]);
 
   const inFieldCount = (owners || []).filter(o => o.deployed_at && !o.retrieved_at).length;
   const doneCount = (owners || []).filter(o => o.retrieved_at).length;
@@ -223,21 +234,50 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
       </div>
       {err && <div className="text-sm text-red-400 mb-2">{err}</div>}
 
+      {/* Landowner search */}
+      <div className="mb-2">
+        <div className="relative">
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search landowners…"
+            className="w-full bg-brandBg border border-brandBorder rounded p-2 pl-7 text-sm text-white placeholder:text-slate-500 focus:border-landGreen focus:outline-none"
+          />
+          <span className="absolute left-2 top-2.5 text-slate-500 text-sm">🔎</span>
+          {query && (
+            <button onClick={() => setQuery('')}
+              className="absolute right-2 top-1.5 text-slate-400 hover:text-white text-sm px-1">✕</button>
+          )}
+        </div>
+        {query && (
+          <div className="text-xs text-slate-500 mt-1">
+            {visibleItems.length === 0
+              ? <>No matches for <strong>{query}</strong> in the route.</>
+              : <>{visibleItems.length} match{visibleItems.length === 1 ? '' : 'es'}</>}
+          </div>
+        )}
+      </div>
+
       {items.length === 0 ? (
         <div className="text-sm text-slate-500 bg-brandBg rounded p-3">
           No parcels in the schedule. Deploy or unblock a parcel to add it.
         </div>
       ) : (
         <ul className="space-y-1">
-          {items.map(({ owner, distMi }, idx) => {
+          {visibleItems.map(({ owner, distMi }, idx) => {
             const isCur = owner.id === currentOwnerId;
             const status = owner.deployed_at ? '🟢 in field'
                           : owner.deployment_readiness === 'blocked' ? '🔴 blocked'
                           : owner.deployment_readiness === 'needs_work' ? '🟠 needs work'
                           : owner.deployment_readiness === 'ready' ? '🔵 ready'
                           : '⚪ unscouted';
-            const canUp = idx > 0;
-            const canDown = idx < items.length - 1;
+            // Disable reorder while a search query is active — the index in
+            // visibleItems isn't the real schedule index, so up/down would
+            // produce incorrect rewrites of ordered_ids.
+            const filtering = !!query.trim();
+            const canUp = !filtering && idx > 0;
+            const canDown = !filtering && idx < items.length - 1;
             return (
               <li key={owner.id} className={`flex gap-1 items-stretch rounded
                 ${isCur ? 'bg-landGreen/15 border border-landGreen' : 'bg-brandBg border border-brandBorder'}`}>

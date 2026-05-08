@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import OpsInfoView from './OpsInfoView.jsx';
 import OpsInfoEdit from './OpsInfoEdit.jsx';
 import ScoutTools from './ScoutTools.jsx';
@@ -13,8 +13,15 @@ export default function ParcelDetail({
   onClose, onChanged, onRequestDropPin,
   onSelectOwner,
   onRequestPickStart,
+  initialTab,
 }) {
-  const [tab, setTab] = useState(role === 'crew' ? 'status' : 'readiness');
+  const [tab, setTab] = useState(initialTab || (role === 'crew' ? 'status' : 'readiness'));
+
+  // When a Schedule row tap requests a specific tab (e.g. 'ops'), or the user
+  // hops to a different owner via search, jump there.
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [owner.id, initialTab]);
 
   const scoutTabs = [
     { id: 'ops', label: 'Ops Info' },

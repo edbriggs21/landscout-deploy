@@ -297,7 +297,7 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
             return (
               <li key={owner.id} className={`flex gap-1 items-stretch rounded
                 ${isCur ? 'bg-landGreen/15 border border-landGreen' : 'bg-brandBg border border-brandBorder'}`}>
-                <button onClick={() => onSelectOwner && onSelectOwner(owner.id)}
+                <button onClick={() => onSelectOwner && onSelectOwner(owner.id, { initialTab: 'ops' })}
                   className="flex-1 min-w-0 flex gap-3 p-2 text-left text-sm hover:bg-brandBg">
                   <span className={`flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold
                     ${idx === 0 ? 'bg-landGreen text-deepBlue' : 'bg-brandBorder text-white'}`}>
@@ -310,6 +310,7 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
                       {distMi != null && <span> · {distMi.toFixed(1)} mi from prev</span>}
                     </div>
                   </span>
+                  <span className="flex-shrink-0 self-center text-slate-500 text-lg leading-none" aria-hidden>›</span>
                 </button>
                 {!isReadOnly && (
                   <div className="flex flex-col border-l border-brandBorder/60">

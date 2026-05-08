@@ -31,6 +31,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [data, setData] = useState(null);        // { project, owners, access_points, photos, layers, role }
   const [selectedOwnerId, setSelectedOwnerId] = useState(null);
+  const [selectedOwnerInitialTab, setSelectedOwnerInitialTab] = useState(null);
   const [loadedLayers, setLoadedLayers] = useState({}); // { [layer_id]: geojson }
   const [visibleLayerIds, setVisibleLayerIds] = useState(null); // Set | null (init from data)
 
@@ -84,6 +85,13 @@ export default function App() {
     setRole(r);
     setUrlParams({ code, role: r });
   };
+
+  // Wrapper used by MapView and Schedule rows to open an owner's detail sheet,
+  // optionally jumping straight to a specific tab (e.g. 'ops' from Schedule taps).
+  const selectOwner = useCallback((id, opts) => {
+    setSelectedOwnerId(id);
+    setSelectedOwnerInitialTab((opts && opts.initialTab) || null);
+  }, []);
 
   // Toggle a layer's visibility, fetching its geojson the first time
   const toggleLayer = useCallback(async (layer_id) => {
@@ -192,7 +200,7 @@ export default function App() {
         onToggleLayer={toggleLayer}
         selectedOwnerId={selectedOwnerId}
         dropPinMode={dropPinMode || pickStartMode}
-        onSelectOwner={setSelectedOwnerId}
+        onSelectOwner={(id) => selectOwner(id)}
         onMapTap={async ({ lng, lat }) => {
           if (pickStartMode) {
             try {
@@ -247,10 +255,11 @@ export default function App() {
           accessPoints={ownerAccessPoints}
           photos={ownerPhotos}
           owners={data.owners}
-          onClose={() => { setSelectedOwnerId(null); setDropPinMode(false); }}
+          onClose={() => { setSelectedOwnerId(null); setSelectedOwnerInitialTab(null); setDropPinMode(false); }}
           onChanged={refreshAfterWrite}
           onRequestDropPin={() => setDropPinMode(true)}
-          onSelectOwner={setSelectedOwnerId}
+          onSelectOwner={(id, opts) => selectOwner(id, opts)}
+          initialTab={selectedOwnerInitialTab}
           onRequestPickStart={() => { setSelectedOwnerId(null); setPickStartMode(true); }}
         />
       )}

@@ -49,6 +49,30 @@ export default function MapView({
         },
       });
 
+      // Selected-owner highlight: a brighter overlay on top of normal parcels
+      // shown only for the currently-selected owner_id. Uses a filter that we
+      // update via a separate effect when selectedOwnerId changes.
+      map.addLayer({
+        id: 'parcels-fill-selected',
+        type: 'fill',
+        source: 'parcels',
+        filter: ['==', ['get', 'owner_id'], '__none__'],
+        paint: {
+          'fill-color': '#9ACD32',
+          'fill-opacity': 0.45,
+        },
+      });
+      map.addLayer({
+        id: 'parcels-outline-selected',
+        type: 'line',
+        source: 'parcels',
+        filter: ['==', ['get', 'owner_id'], '__none__'],
+        paint: {
+          'line-color': '#9ACD32',
+          'line-width': 4,
+        },
+      });
+
       map.addSource('access-points', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.addLayer({
         id: 'access-points-symbol',
@@ -317,6 +341,18 @@ export default function MapView({
       setVis(strokeId);
     }
   }, [layers, loadedLayers, visibleLayerIds, ready]);
+
+  // Highlight the selected owner's parcels by updating the filters on the
+  // overlay highlight layers. '__none__' is a sentinel that matches nothing
+  // when no owner is selected.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const id = selectedOwnerId || '__none__';
+    const filter = ['==', ['get', 'owner_id'], id];
+    if (map.getLayer('parcels-fill-selected')) map.setFilter('parcels-fill-selected', filter);
+    if (map.getLayer('parcels-outline-selected')) map.setFilter('parcels-outline-selected', filter);
+  }, [selectedOwnerId, ready]);
 
   // Handle drop-pin tap mode — bind a one-shot click listener
   useEffect(() => {

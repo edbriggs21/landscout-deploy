@@ -43,7 +43,7 @@ export default function ParcelDetail({
     <div className="absolute inset-x-0 bottom-0 sheet-in">
       <div className="bg-brandSurface border-t border-brandBorder rounded-t-2xl shadow-2xl max-h-[80vh] flex flex-col safe-bottom">
         {/* Header */}
-        <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+        <div className="px-4 pt-3 pb-2 flex items-center justify-between flex-shrink-0">
           <div className="min-w-0">
             <div className="text-white font-semibold truncate">{owner.owner_name || owner.name || 'Unnamed parcel'}</div>
             <div className="text-xs text-slate-400 truncate">
@@ -54,7 +54,7 @@ export default function ParcelDetail({
         </div>
 
         {/* Tabs */}
-        <div className="px-2 border-b border-brandBorder flex overflow-x-auto no-scrollbar">
+        <div className="px-2 border-b border-brandBorder flex overflow-x-auto no-scrollbar flex-shrink-0">
           {tabs.map(t => (
             <button
               key={t.id}
@@ -70,7 +70,7 @@ export default function ParcelDetail({
         </div>
 
         {/* Body */}
-        <div className="p-4 overflow-y-auto">
+        <div className="p-4 overflow-y-auto flex-1 min-h-0">
           {tab === 'ops' && <OpsInfoView owner={owner} project={project} code={code} />}
 
           {role === 'scout' && tab === 'readiness' && (

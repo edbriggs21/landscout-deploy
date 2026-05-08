@@ -43,6 +43,7 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
   const [recomputing, setRecomputing] = useState(false);
   const [reordering, setReordering] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [err, setErr] = useState('');
   const [query, setQuery] = useState('');
 
@@ -107,6 +108,14 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
       await onChanged();
     } catch (e) { setErr(e.message); }
     finally { setResetting(false); }
+  };
+
+  const exportNodes = async () => {
+    setExporting(true); setErr('');
+    try {
+      await api.downloadNodesReport({ code });
+    } catch (e) { setErr(e.message); }
+    finally { setExporting(false); }
   };
 
   const isReadOnly = role !== 'crew';
@@ -225,12 +234,19 @@ export default function Schedule({ owners, role, code, name, project, onSelectOw
 
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm text-slate-400">{project && project.schedule_manual ? 'Manual route' : 'Recommended route'}</div>
-        {!isReadOnly && !(project && project.schedule_manual) && (
-          <button onClick={recompute} disabled={recomputing}
+        <div className="flex gap-2">
+          <button onClick={exportNodes} disabled={exporting}
+            title="Download a CSV of every node falling on every owner's parcels"
             className="text-xs bg-brandBg border border-brandBorder rounded px-2 py-1 text-slate-300 hover:border-landGreen disabled:opacity-50">
-            {recomputing ? 'Recomputing…' : '↻ Recompute'}
+            {exporting ? 'Exporting…' : '⬇ Nodes CSV'}
           </button>
-        )}
+          {!isReadOnly && !(project && project.schedule_manual) && (
+            <button onClick={recompute} disabled={recomputing}
+              className="text-xs bg-brandBg border border-brandBorder rounded px-2 py-1 text-slate-300 hover:border-landGreen disabled:opacity-50">
+              {recomputing ? 'Recomputing…' : '↻ Recompute'}
+            </button>
+          )}
+        </div>
       </div>
       {err && <div className="text-sm text-red-400 mb-2">{err}</div>}
 

@@ -64,7 +64,7 @@ export default function ParcelDetail({
 
         {/* Body */}
         <div className="p-4 overflow-y-auto">
-          {tab === 'ops' && <OpsInfoView owner={owner} project={project} />}
+          {tab === 'ops' && <OpsInfoView owner={owner} project={project} code={code} />}
 
           {role === 'scout' && tab === 'readiness' && (
             <ScoutTools.Readiness owner={owner} code={code} name={name} onChanged={onChanged} />

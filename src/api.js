@@ -87,3 +87,33 @@ export async function reorderSchedule({ code, ordered_ids, updated_by }) {
 export async function resetSchedule({ code, updated_by }) {
   return postJson('deployment-reset-schedule', { code, updated_by });
 }
+
+export async function getOwnerNodes({ code, owner_id }) {
+  return postJson('deployment-owner-nodes', { code, owner_id });
+}
+
+// Triggers a CSV download in the browser.
+export async function downloadNodesReport({ code }) {
+  const res = await fetch(`${BASE}/deployment-export-nodes-report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    let msg;
+    try { msg = JSON.parse(t).error; } catch { msg = t; }
+    throw new Error(msg || `Report failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  // Filename from Content-Disposition if present
+  const cd = res.headers.get('content-disposition') || '';
+  const m = /filename=\"?([^\";]+)/.exec(cd);
+  const filename = m ? m[1] : 'nodes-report.csv';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+  return { filename };
+}

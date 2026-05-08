@@ -1,5 +1,6 @@
 import React from 'react';
 import { getMergedOpsSchema, collectSchemaKeys } from '../lib/ops-schema.js';
+import NodesOnParcel from './NodesOnParcel.jsx';
 
 function fmt(val) {
   if (val === null || val === undefined || val === '') return null;
@@ -29,12 +30,18 @@ function FieldRow({ label, value }) {
   );
 }
 
-export default function OpsInfoView({ owner, project }) {
+export default function OpsInfoView({ owner, project, code }) {
   const schema = getMergedOpsSchema(project);
   const info = owner.ops_info || {};
 
   return (
     <div className="space-y-5">
+      {/* Nodes on this parcel — point-in-polygon match against overlay layers */}
+      <div>
+        <div className="text-sm uppercase tracking-wider text-slate-500 mb-2">Nodes on this parcel</div>
+        {code ? <NodesOnParcel owner={owner} code={code} /> : <div className="text-xs text-slate-500">—</div>}
+      </div>
+
       {schema.sections.map(sec => (
         <div key={sec.key}>
           <div className="text-sm uppercase tracking-wider text-slate-500 mb-2">{sec.label}</div>

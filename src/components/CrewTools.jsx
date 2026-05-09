@@ -19,46 +19,66 @@ export default function CrewTools({ owner, code, name, onChanged }) {
   const retrieved = !!owner.retrieved_at;
 
   return (
-    <div>
-      {!deployed && !retrieved && (
-        <button disabled={busy} onClick={() => act('deploy')}
-          className="w-full bg-landGreen text-deepBlue font-semibold py-4 rounded-xl text-lg disabled:opacity-50">
-          {busy ? 'Working…' : 'Mark Deployed'}
-        </button>
-      )}
-
-      {deployed && !retrieved && (
-        <div className="space-y-3">
-          <div className="text-sm text-slate-300">
-            Deployed {new Date(owner.deployed_at).toLocaleString()} by {owner.deployed_by || '—'}
+    <div className="space-y-4">
+      {/* DEPLOY block */}
+      <div className="bg-brandBg border border-brandBorder rounded-xl p-3">
+        <div className="text-xs uppercase tracking-wider text-slate-400 mb-2">Deploy</div>
+        {deployed ? (
+          <div className="space-y-2">
+            <div className="text-sm text-slate-300">
+              <span className="text-landGreen">●</span> Deployed {new Date(owner.deployed_at).toLocaleString()}
+              {owner.deployed_by && <> by {owner.deployed_by}</>}
+            </div>
+            <button disabled={busy} onClick={() => act('undeploy', 'undo the deploy')}
+              className="w-full bg-brandSurface border border-brandBorder text-slate-300 py-2 rounded-lg text-sm hover:border-red-400 disabled:opacity-50">
+              ↶ Undo Deploy
+            </button>
           </div>
-          <button disabled={busy} onClick={() => act('retrieve')}
-            className="w-full bg-dataBlue text-white font-semibold py-4 rounded-xl text-lg disabled:opacity-50">
-            {busy ? 'Working…' : 'Mark Retrieved'}
+        ) : (
+          <button disabled={busy} onClick={() => act('deploy')}
+            className="w-full bg-landGreen text-deepBlue font-semibold py-3 rounded-xl text-base disabled:opacity-50">
+            {busy ? 'Working…' : 'Mark Deployed'}
           </button>
-          <button disabled={busy} onClick={() => act('undeploy', 'undo the deploy')}
-            className="w-full bg-brandBg border border-brandBorder text-slate-300 py-2 rounded-lg text-sm">
-            Undo Deploy
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {retrieved && (
-        <div className="space-y-3">
-          <div className="text-sm text-slate-300">
-            Deployed {new Date(owner.deployed_at).toLocaleString()} by {owner.deployed_by || '—'}
+      {/* RETRIEVE block — always visible. Allows retrieve-without-deploy with a confirm. */}
+      <div className="bg-brandBg border border-brandBorder rounded-xl p-3">
+        <div className="text-xs uppercase tracking-wider text-slate-400 mb-2">Retrieve</div>
+        {retrieved ? (
+          <div className="space-y-2">
+            <div className="text-sm text-slate-300">
+              <span className="text-emerald-500">●</span> Retrieved {new Date(owner.retrieved_at).toLocaleString()}
+              {owner.retrieved_by && <> by {owner.retrieved_by}</>}
+            </div>
+            <button disabled={busy} onClick={() => act('unretrieve', 'undo the retrieval')}
+              className="w-full bg-brandSurface border border-brandBorder text-slate-300 py-2 rounded-lg text-sm hover:border-red-400 disabled:opacity-50">
+              ↶ Undo Retrieve
+            </button>
           </div>
-          <div className="text-sm text-slate-300">
-            Retrieved {new Date(owner.retrieved_at).toLocaleString()} by {owner.retrieved_by || '—'}
-          </div>
-          <button disabled={busy} onClick={() => act('unretrieve', 'undo the retrieval')}
-            className="w-full bg-brandBg border border-brandBorder text-slate-300 py-2 rounded-lg text-sm">
-            Undo Retrieve
-          </button>
-        </div>
-      )}
+        ) : (
+          <>
+            <button
+              disabled={busy}
+              onClick={() => {
+                if (!deployed) {
+                  if (!confirm('This parcel hasn’t been marked Deployed. Mark it Retrieved anyway?')) return;
+                }
+                act('retrieve');
+              }}
+              className="w-full bg-dataBlue text-white font-semibold py-3 rounded-xl text-base disabled:opacity-50">
+              {busy ? 'Working…' : 'Mark Retrieved'}
+            </button>
+            {!deployed && (
+              <div className="mt-2 text-xs text-slate-500">
+                Not yet deployed — confirm before marking retrieved.
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
-      {err && <div className="mt-2 text-sm text-red-400">{err}</div>}
+      {err && <div className="text-sm text-red-400">{err}</div>}
     </div>
   );
 }

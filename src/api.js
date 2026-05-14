@@ -92,6 +92,12 @@ export async function getOwnerNodes({ code, owner_id }) {
   return postJson('deployment-owner-nodes', { code, owner_id });
 }
 
+// Mark a single node deployed/retrieved/undeploy/unretrieve. Server
+// auto-rolls-up parcel state when all nodes on a parcel reach the same state.
+export async function updateNodeStatus({ code, layer_id, feature_key, action, updated_by }) {
+  return postJson('deployment-update-node-status', { code, layer_id, feature_key, action, updated_by });
+}
+
 // Triggers a CSV download in the browser.
 export async function downloadNodesReport({ code }) {
   const res = await fetch(`${BASE}/deployment-export-nodes-report`, {

@@ -30,7 +30,7 @@ function FieldRow({ label, value }) {
   );
 }
 
-export default function OpsInfoView({ owner, project, code }) {
+export default function OpsInfoView({ owner, project, code, name, role, onChanged }) {
   const schema = getMergedOpsSchema(project);
   const info = owner.ops_info || {};
 
@@ -39,7 +39,9 @@ export default function OpsInfoView({ owner, project, code }) {
       {/* Nodes on this parcel — point-in-polygon match against overlay layers */}
       <div>
         <div className="text-sm uppercase tracking-wider text-slate-500 mb-2">Nodes on this parcel</div>
-        {code ? <NodesOnParcel owner={owner} code={code} /> : <div className="text-xs text-slate-500">—</div>}
+        {code
+          ? <NodesOnParcel owner={owner} code={code} name={name} role={role} onChanged={onChanged} />
+          : <div className="text-xs text-slate-500">—</div>}
       </div>
 
       {schema.sections.map(sec => (

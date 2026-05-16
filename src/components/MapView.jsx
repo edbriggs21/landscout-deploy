@@ -298,6 +298,32 @@ export default function MapView({
                 'circle-opacity': fillOpacity || 1,
               },
             }, 'parcels-fill');
+            // Text label showing the canonical node_number (when present).
+            // minzoom raised slightly so labels don't smear into illegibility
+            // at far-out zoom levels.
+            const textId = `${layerId}-text`;
+            try {
+              map.addLayer({
+                id: textId, type: 'symbol', source: sourceId,
+                minzoom: Math.max(minzoom, 12),
+                maxzoom,
+                filter: ['has', 'node_number'],
+                layout: {
+                  'text-field': ['get', 'node_number_label'],
+                  'text-size': 11,
+                  'text-anchor': 'left',
+                  'text-offset': [0.6, 0],
+                  'text-allow-overlap': false,
+                  'text-ignore-placement': false,
+                  'text-font': ['Noto Sans Bold'],
+                },
+                paint: {
+                  'text-color': '#FFFFFF',
+                  'text-halo-color': '#0B2A4A',
+                  'text-halo-width': 1.4,
+                },
+              });
+            } catch (_) {}
           } else if (gtype.includes('line')) {
             map.addLayer({
               id: layerId, type: 'line', source: sourceId,
@@ -339,6 +365,7 @@ export default function MapView({
       };
       setVis(layerId);
       setVis(strokeId);
+      setVis(`${layerId}-text`);
     }
   }, [layers, loadedLayers, visibleLayerIds, ready]);
 

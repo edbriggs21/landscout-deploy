@@ -141,6 +141,7 @@ export default function MapView({
       });
 
       map.on('click', 'parcels-fill', (e) => {
+        if (e.defaultPrevented) return; // an access-point click already handled this
         const f = e.features && e.features[0];
         if (f && f.properties && f.properties.owner_id) {
           onSelectOwner(f.properties.owner_id);
@@ -148,6 +149,33 @@ export default function MapView({
       });
       map.on('mouseenter', 'parcels-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'parcels-fill', () => { map.getCanvas().style.cursor = ''; });
+
+      // Click an access-point pin -> popup with a 'Get directions' link.
+      // Uses Google Maps directions URL which auto-opens the Maps app on
+      // mobile (both iOS and Android) and the web on desktop.
+      map.on('click', 'access-points-symbol', (e) => {
+        e.preventDefault(); // suppress fall-through to parcels-fill below
+        const f = e.features && e.features[0];
+        if (!f) return;
+        const [lng, lat] = f.geometry.coordinates;
+        const label = (f.properties && f.properties.label) || 'Access pin';
+        const dirUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+        const html = `
+          <div style="font-family: -apple-system, sans-serif; min-width: 180px;">
+            <div style="font-weight: 600; color: #0B2A4A; margin-bottom: 4px;">${label.replace(/[<>&"]/g, c=>({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]))}</div>
+            <div style="font-size: 11px; color: #5F7799; margin-bottom: 8px;">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+            <a href="${dirUrl}" target="_blank" rel="noopener noreferrer"
+               style="display: inline-block; background: #9ACD32; color: #0B2A4A; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none;">
+              🚗 Get directions
+            </a>
+          </div>`;
+        new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 18 })
+          .setLngLat([lng, lat])
+          .setHTML(html)
+          .addTo(map);
+      });
+      map.on('mouseenter', 'access-points-symbol', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'access-points-symbol', () => { map.getCanvas().style.cursor = ''; });
 
       setReady(true);
 

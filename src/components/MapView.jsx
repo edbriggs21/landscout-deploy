@@ -287,11 +287,18 @@ export default function MapView({
       if (loadedLayers[meta.id] && !map.getLayer(layerId)) {
         try {
           if (gtype.includes('point')) {
+            // Bigger circles so the canonical node number fits inside them.
+            // Scale slightly with zoom so they read at multiple altitudes.
             map.addLayer({
               id: layerId, type: 'circle', source: sourceId,
               minzoom, maxzoom,
               paint: {
-                'circle-radius': pointRadius,
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  10, Math.max(pointRadius, 6),
+                  14, Math.max(pointRadius, 11),
+                  18, Math.max(pointRadius, 16),
+                ],
                 'circle-color': color,
                 'circle-stroke-color': psColor,
                 'circle-stroke-width': psWidth,
@@ -305,22 +312,26 @@ export default function MapView({
             try {
               map.addLayer({
                 id: textId, type: 'symbol', source: sourceId,
-                minzoom: Math.max(minzoom, 12),
+                minzoom: Math.max(minzoom, 11),
                 maxzoom,
                 filter: ['has', 'node_number'],
                 layout: {
                   'text-field': ['get', 'node_number_label'],
-                  'text-size': 11,
-                  'text-anchor': 'left',
-                  'text-offset': [0.6, 0],
-                  'text-allow-overlap': false,
-                  'text-ignore-placement': false,
+                  'text-size': [
+                    'interpolate', ['linear'], ['zoom'],
+                    11, 8,
+                    14, 10,
+                    18, 14,
+                  ],
+                  'text-anchor': 'center',
+                  'text-allow-overlap': true,
+                  'text-ignore-placement': true,
                   'text-font': ['Noto Sans Bold'],
                 },
                 paint: {
                   'text-color': '#FFFFFF',
                   'text-halo-color': '#0B2A4A',
-                  'text-halo-width': 1.4,
+                  'text-halo-width': 0.8,
                 },
               });
             } catch (_) {}

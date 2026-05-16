@@ -317,6 +317,8 @@ export default function MapView({
           if (gtype.includes('point')) {
             // Bigger circles so the canonical node number fits inside them.
             // Scale slightly with zoom so they read at multiple altitudes.
+            // circle-color uses a case expression on node_status:
+            //   retrieved -> emerald green, deployed -> yellow, else layer color
             map.addLayer({
               id: layerId, type: 'circle', source: sourceId,
               minzoom, maxzoom,
@@ -327,8 +329,18 @@ export default function MapView({
                   14, Math.max(pointRadius, 11),
                   18, Math.max(pointRadius, 16),
                 ],
-                'circle-color': color,
-                'circle-stroke-color': psColor,
+                'circle-color': [
+                  'case',
+                  ['==', ['get', 'node_status'], 'retrieved'], '#10B981',
+                  ['==', ['get', 'node_status'], 'deployed'],  '#FACC15',
+                  color,
+                ],
+                'circle-stroke-color': [
+                  'case',
+                  ['==', ['get', 'node_status'], 'retrieved'], '#065F46',
+                  ['==', ['get', 'node_status'], 'deployed'],  '#92400E',
+                  psColor,
+                ],
                 'circle-stroke-width': psWidth,
                 'circle-opacity': fillOpacity || 1,
               },

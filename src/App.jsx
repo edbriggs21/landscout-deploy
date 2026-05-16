@@ -127,16 +127,31 @@ export default function App() {
     })();
   }, [data, visibleLayerIds, code]); // eslint-disable-line
 
-  // Refresh one owner's data after a write
+  // Refresh owner data + currently-loaded overlay layers after a write.
+  // Re-fetching the layer is what carries the freshly-updated node_status
+  // (deployed/retrieved) onto the map's circle paint expression.
   const refreshAfterWrite = useCallback(async () => {
     if (!code) return;
     try {
       const res = await api.validateCode(code);
       setData(res);
+      // Re-fetch every overlay layer we've already loaded, so node_status
+      // colors and per-node labels stay in sync with the latest writes.
+      const layerIdsToRefresh = Object.keys(loadedLayers);
+      if (layerIdsToRefresh.length > 0) {
+        await Promise.all(layerIdsToRefresh.map(async (id) => {
+          try {
+            const r = await api.fetchLayer({ code, layer_id: id });
+            setLoadedLayers(prev => ({ ...prev, [id]: r.geojson }));
+          } catch (e) {
+            console.warn('layer re-fetch failed', id, e);
+          }
+        }));
+      }
     } catch (e) {
       console.warn('Refresh failed', e);
     }
-  }, [code]);
+  }, [code, loadedLayers]);
 
   const selectedOwner = useMemo(() => {
     if (!data || !selectedOwnerId) return null;

@@ -119,7 +119,8 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
               return (
                 <li key={i} className="bg-brandBg border border-brandBorder/40 rounded p-2 flex flex-col gap-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-white font-mono">{n.label || '—'}</span>
+                    <span className="text-white font-mono font-semibold">#{n.node_number != null ? n.node_number : '—'}</span>
+                    <span className="text-slate-400 font-mono text-[10px]">{n.label || ''}</span>
                     {pill}
                     <span className="text-slate-500 ml-auto">{n.lat.toFixed(5)}, {n.lng.toFixed(5)}</span>
                     <button
@@ -138,7 +139,7 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
                             className="text-[11px] bg-landGreen text-deepBlue font-semibold px-2 py-1 rounded disabled:opacity-50"
                           >{busy ? '…' : 'Deploy'}</button>
                           <button
-                            onClick={() => { if (confirm('Mark ' + n.label + ' retrieved without first marking deploy?')) act(n, 'retrieve'); }}
+                            onClick={() => { if (confirm('Mark node #' + n.node_number + ' (' + n.label + ') retrieved without first marking deploy?')) act(n, 'retrieve'); }}
                             disabled={busy}
                             className="text-[11px] bg-brandSurface border border-brandBorder text-slate-400 px-2 py-1 rounded disabled:opacity-50 hover:border-landGreen"
                           >Mark retrieved</button>
@@ -152,7 +153,7 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
                             className="text-[11px] bg-dataBlue text-white font-semibold px-2 py-1 rounded disabled:opacity-50"
                           >{busy ? '…' : 'Retrieve'}</button>
                           <button
-                            onClick={() => { if (confirm('Undo deploy for ' + n.label + '?')) act(n, 'undeploy'); }}
+                            onClick={() => { if (confirm('Undo deploy for node #' + n.node_number + ' (' + n.label + ')?')) act(n, 'undeploy'); }}
                             disabled={busy}
                             className="text-[11px] bg-brandSurface border border-brandBorder text-slate-300 px-2 py-1 rounded disabled:opacity-50 hover:border-red-400"
                           >Undo deploy</button>
@@ -160,7 +161,7 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
                       )}
                       {retrieved && (
                         <button
-                          onClick={() => { if (confirm('Undo retrieve for ' + n.label + '?')) act(n, 'unretrieve'); }}
+                          onClick={() => { if (confirm('Undo retrieve for node #' + n.node_number + ' (' + n.label + ')?')) act(n, 'unretrieve'); }}
                           disabled={busy}
                           className="text-[11px] bg-brandSurface border border-brandBorder text-slate-300 px-2 py-1 rounded disabled:opacity-50 hover:border-red-400"
                         >Undo retrieve</button>

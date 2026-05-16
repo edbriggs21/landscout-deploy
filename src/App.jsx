@@ -247,10 +247,27 @@ export default function App() {
       />
 
       {/* Top status bar */}
-      <div className="absolute top-0 left-0 right-0 p-3 safe-top flex items-center justify-between bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
+      <div className="absolute top-0 left-0 right-0 p-3 safe-top flex items-center justify-between gap-2 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
         <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs">
           <span className="text-slate-400">Project:</span> <span className="text-white font-medium">{data.project?.name}</span>
         </div>
+        {data.node_stats && (
+          <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs flex items-center gap-3 whitespace-nowrap">
+            <span className="text-slate-400 uppercase tracking-wider">Nodes</span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-slate-400"></span>
+              <span className="text-white font-medium">{data.node_stats.total}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-yellow-400"></span>
+              <span className="text-yellow-300 font-medium">{data.node_stats.deployed}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span className="text-emerald-400 font-medium">{data.node_stats.retrieved}</span>
+            </span>
+          </div>
+        )}
         <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2">
           <span className={`inline-block w-2 h-2 rounded-full ${role === 'crew' ? 'bg-landGreen' : 'bg-dataBlue'}`}></span>
           <span className="text-white capitalize">{role}</span>

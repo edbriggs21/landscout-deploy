@@ -350,7 +350,7 @@ export default function MapView({
                 ],
                 'circle-opacity': fillOpacity || 1,
               },
-            }, 'parcels-fill');
+            }, 'access-points-symbol');
             // Text label showing the canonical node_number (when present).
             // minzoom raised slightly so labels don't smear into illegibility
             // at far-out zoom levels.
@@ -390,7 +390,7 @@ export default function MapView({
                 'line-width': lineWidth,
                 'line-opacity': strokeOpacity,
               },
-            }, 'parcels-fill');
+            }, 'access-points-symbol');
           } else if (gtype.includes('polygon')) {
             map.addLayer({
               id: layerId, type: 'fill', source: sourceId,
@@ -399,7 +399,7 @@ export default function MapView({
                 'fill-color': color,
                 'fill-opacity': fillOpacity,
               },
-            }, 'parcels-fill');
+            }, 'access-points-symbol');
             map.addLayer({
               id: strokeId, type: 'line', source: sourceId,
               minzoom, maxzoom,
@@ -408,7 +408,7 @@ export default function MapView({
                 'line-width': lineWidth,
                 'line-opacity': strokeOpacity,
               },
-            }, 'parcels-fill');
+            }, 'access-points-symbol');
           }
         } catch (e) {
           console.warn('add overlay layer failed', meta.name, e);

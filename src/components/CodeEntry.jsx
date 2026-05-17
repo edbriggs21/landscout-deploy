@@ -18,9 +18,14 @@ export default function CodeEntry({ defaultCode = '', error, loading, onSubmit }
             autoFocus
             type="text"
             value={code}
-            onChange={e => setCode(e.target.value.toUpperCase())}
+            onChange={e => setCode(e.target.value.replace(/\s+/g, '').toUpperCase())}
             maxLength={12}
             placeholder="ABC12345"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            inputMode="text"
             className="w-full bg-brandBg border border-brandBorder rounded-lg px-4 py-3 text-white text-lg tracking-widest font-mono uppercase focus:border-landGreen focus:outline-none"
           />
           {error && <div className="mt-3 text-sm text-red-400">{error}</div>}

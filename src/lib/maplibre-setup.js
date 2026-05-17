@@ -37,9 +37,10 @@ const OSM_STYLE = {
     },
   },
   layers: [
-    { id: 'esri-streets',        type: 'raster', source: 'esri-streets' },
-    { id: 'esri-imagery',        type: 'raster', source: 'esri-imagery', layout: { visibility: 'none' } },
-    { id: 'esri-transportation', type: 'raster', source: 'esri-transportation', layout: { visibility: 'none' } },
+    { id: 'esri-streets', type: 'raster', source: 'esri-streets' },
+    { id: 'esri-imagery', type: 'raster', source: 'esri-imagery', layout: { visibility: 'none' } },
+    // esri-transportation is added programmatically in MapView load handler
+    // so we can place it above parcels but below access pins.
   ],
 };
 
@@ -49,14 +50,15 @@ export function setBasemap(map, name) {
   if (!map || !map.getLayer) return;
   const apply = () => {
     if (!map.getLayer('esri-streets') || !map.getLayer('esri-imagery')) return;
+    const hasTransport = !!map.getLayer('esri-transportation');
     if (name === 'satellite') {
       map.setLayoutProperty('esri-streets', 'visibility', 'none');
       map.setLayoutProperty('esri-imagery', 'visibility', 'visible');
-      map.setLayoutProperty('esri-transportation', 'visibility', 'visible');
+      if (hasTransport) map.setLayoutProperty('esri-transportation', 'visibility', 'visible');
     } else {
       map.setLayoutProperty('esri-streets', 'visibility', 'visible');
       map.setLayoutProperty('esri-imagery', 'visibility', 'none');
-      map.setLayoutProperty('esri-transportation', 'visibility', 'none');
+      if (hasTransport) map.setLayoutProperty('esri-transportation', 'visibility', 'none');
     }
   };
   if (map.isStyleLoaded()) apply();

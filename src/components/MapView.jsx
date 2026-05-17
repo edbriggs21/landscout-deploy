@@ -114,6 +114,16 @@ export default function MapView({
         paint: { 'text-color': '#0B2A4A' },
       });
 
+      // Roads + place-name overlay (visible in satellite mode). Placed
+      // above the parcel fill so labels stay readable; below access pins
+      // so they don't cover any tappable scout markers.
+      try {
+        map.addLayer({
+          id: 'esri-transportation', type: 'raster', source: 'esri-transportation',
+          layout: { visibility: 'none' },
+        }, 'access-points-symbol');
+      } catch (_) {}
+
       // Schedule order labels — small numeric badges at parcel centroids
       map.addSource('order-labels', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.addLayer({
@@ -336,10 +346,13 @@ export default function MapView({
 
       // Add or update source when geojson is available
       if (loadedLayers[meta.id]) {
-        if (!map.getSource(sourceId)) {
+        const existing = map.getSource(sourceId);
+        if (!existing) {
           try {
             map.addSource(sourceId, { type: 'geojson', data: loadedLayers[meta.id] });
           } catch (_) { /* ignore double-add */ }
+        } else {
+          try { existing.setData(loadedLayers[meta.id]); } catch (_) {}
         }
       }
 

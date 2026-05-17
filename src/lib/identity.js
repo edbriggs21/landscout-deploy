@@ -29,3 +29,27 @@ export function getParcelsVisible() {
 export function setParcelsVisible(v) {
   try { localStorage.setItem(PARCELS_KEY, v ? '1' : '0'); } catch {}
 }
+
+const SESSION_KEY = 'deploy_session_id';
+export function getSessionId() {
+  try {
+    let v = localStorage.getItem(SESSION_KEY);
+    if (!v) {
+      v = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'ses-' + Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+      localStorage.setItem(SESSION_KEY, v);
+    }
+    return v;
+  } catch {
+    return 'ses-fallback-' + Date.now().toString(36);
+  }
+}
+
+const SHARE_KEY = 'deploy_share_location';
+export function getShareLocation() {
+  try { return localStorage.getItem(SHARE_KEY) === '1'; } catch { return false; }
+}
+export function setShareLocation(v) {
+  try { localStorage.setItem(SHARE_KEY, v ? '1' : '0'); } catch {}
+}

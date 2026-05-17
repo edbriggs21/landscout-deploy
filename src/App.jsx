@@ -40,6 +40,69 @@ export default function App() {
   // Toggle for the parcel fill/outline layers (persisted)
   const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
   const setParcelsVisible = (v) => { identity.setParcelsVisible(v); setParcelsVisibleState(v); };
+
+  // ---- Location sharing & live crew positions ------------------------------
+  const sessionIdRef = useRef(identity.getSessionId());
+  const [shareLocation, setShareLocationState] = useState(identity.getShareLocation());
+  const setShareLocation = (v) => { identity.setShareLocation(v); setShareLocationState(v); };
+  const [myLocationError, setMyLocationError] = useState('');
+  const [crewLocations, setCrewLocations] = useState([]);
+  const lastPostedRef = useRef(0);
+
+  // Watch GPS while sharing is on, POST every ~10s (and only on meaningful move)
+  useEffect(() => {
+    if (!shareLocation || !code || !name) return;
+    if (!navigator.geolocation) {
+      setMyLocationError('Geolocation not available on this device');
+      return;
+    }
+    let cancelled = false;
+    let lastPos = null;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (cancelled) return;
+        const now = Date.now();
+        const sinceLast = now - lastPostedRef.current;
+        const movedFar = !lastPos || (
+          Math.abs(pos.coords.latitude - lastPos.latitude) > 0.00003 ||  // ~3 m
+          Math.abs(pos.coords.longitude - lastPos.longitude) > 0.00003
+        );
+        if (sinceLast < 10000 && !movedFar) return; // throttle: at most every 10s OR on motion
+        lastPostedRef.current = now;
+        lastPos = pos.coords;
+        api.updateLocation({
+          code,
+          session_id: sessionIdRef.current,
+          name,
+          role,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy_m: pos.coords.accuracy,
+          heading_deg: pos.coords.heading,
+          speed_mps: pos.coords.speed,
+        }).catch(e => console.warn('location update failed', e));
+        setMyLocationError('');
+      },
+      (err) => { setMyLocationError(err.message || 'GPS error'); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+    );
+    return () => { cancelled = true; navigator.geolocation.clearWatch(watchId); };
+  }, [shareLocation, code, name, role]);
+
+  // Poll the active crew list every 10s
+  useEffect(() => {
+    if (!code) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await api.listLocations({ code, session_id: sessionIdRef.current });
+        if (!cancelled) setCrewLocations(res.locations || []);
+      } catch (e) { /* ignore polling failures, retry next tick */ }
+    };
+    tick();
+    const id = setInterval(tick, 10000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [code]);
   // For "tap on map to set schedule start point" mode
   const [pickStartMode, setPickStartMode] = useState(false);
 
@@ -218,6 +281,7 @@ export default function App() {
         onToggleLayer={toggleLayer}
         parcelsVisible={parcelsVisible}
         onToggleParcels={() => setParcelsVisible(!parcelsVisible)}
+        crewLocations={crewLocations}
         selectedOwnerId={selectedOwnerId}
         dropPinMode={dropPinMode || pickStartMode}
         onSelectOwner={(id) => selectOwner(id)}
@@ -256,6 +320,16 @@ export default function App() {
         <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs">
           <span className="text-slate-400">Project:</span> <span className="text-white font-medium">{data.project?.name}</span>
         </div>
+        <button
+          type="button"
+          onClick={() => setShareLocation(!shareLocation)}
+          title={shareLocation ? (myLocationError ? ('Location sharing on — ' + myLocationError) : 'Location sharing on — tap to stop') : 'Share my location with the team'}
+          className={`pointer-events-auto rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 ${shareLocation ? 'bg-landGreen/90 text-deepBlue font-semibold' : 'bg-brandSurface/80 text-slate-300'}`}
+        >
+          {shareLocation
+            ? <><span className="inline-block w-2 h-2 rounded-full bg-deepBlue animate-pulse"></span><span>Sharing</span></>
+            : <><span>📡</span><span>Share location</span></>}
+        </button>
         {data.node_stats && (
           <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs flex items-center gap-3 whitespace-nowrap">
             <span className="text-slate-400 uppercase tracking-wider">Nodes</span>

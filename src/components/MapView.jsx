@@ -11,6 +11,7 @@ export default function MapView({
   project, owners, accessPoints,
   layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
   parcelsVisible = true, onToggleParcels,
+  crewLocations = [],
   selectedOwnerId, dropPinMode,
   onSelectOwner, onMapTap,
 }) {
@@ -139,6 +140,49 @@ export default function MapView({
           'text-font': ['Noto Sans Bold'],
         },
         paint: { 'text-color': '#FFFFFF' },
+      });
+
+      // Live crew locations — pulsing pink dot + name label
+      map.addSource('crew-locations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'crew-locations-halo',
+        type: 'circle',
+        source: 'crew-locations',
+        paint: {
+          'circle-radius': 14,
+          'circle-color': '#EC4899',
+          'circle-opacity': 0.25,
+        },
+      });
+      map.addLayer({
+        id: 'crew-locations-dot',
+        type: 'circle',
+        source: 'crew-locations',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#EC4899',
+          'circle-stroke-color': '#FFFFFF',
+          'circle-stroke-width': 2,
+        },
+      });
+      map.addLayer({
+        id: 'crew-locations-text',
+        type: 'symbol',
+        source: 'crew-locations',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-anchor': 'top',
+          'text-offset': [0, 1.0],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+          'text-font': ['Noto Sans Bold'],
+        },
+        paint: {
+          'text-color': '#FFFFFF',
+          'text-halo-color': '#0B2A4A',
+          'text-halo-width': 1.4,
+        },
       });
 
       map.on('click', 'parcels-fill', (e) => {
@@ -425,6 +469,26 @@ export default function MapView({
       setVis(`${layerId}-text`);
     }
   }, [layers, loadedLayers, visibleLayerIds, ready]);
+
+  // Sync the crew-locations source with the polled list of active crew.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    if (!map.getSource('crew-locations')) return;
+    const features = (crewLocations || []).map(c => {
+      const lastSeenSec = Math.round((Date.now() - new Date(c.updated_at).getTime()) / 1000);
+      const ago = lastSeenSec < 60
+        ? `${lastSeenSec}s ago`
+        : (lastSeenSec < 3600 ? `${Math.round(lastSeenSec / 60)}m ago` : `${Math.round(lastSeenSec / 3600)}h ago`);
+      const label = `${c.name || 'Crew'} · ${ago}`;
+      return {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
+        properties: { label, session_id: c.session_id, role: c.role || '' },
+      };
+    });
+    map.getSource('crew-locations').setData({ type: 'FeatureCollection', features });
+  }, [crewLocations, ready]);
 
   // Toggle the parcel fill/outline (and the selected-owner highlight)
   // visibility based on the parcelsVisible prop.

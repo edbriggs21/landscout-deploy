@@ -123,3 +123,11 @@ export async function downloadNodesReport({ code }) {
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
   return { filename };
 }
+
+export async function updateLocation({ code, session_id, name, role, lat, lng, accuracy_m, heading_deg, speed_mps }) {
+  return postJson('deployment-update-location', { code, session_id, name, role, lat, lng, accuracy_m, heading_deg, speed_mps });
+}
+
+export async function listLocations({ code, session_id }) {
+  return postJson('deployment-list-locations', { code, session_id });
+}

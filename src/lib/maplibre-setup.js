@@ -10,42 +10,53 @@ const OSM_STYLE = {
   version: 8,
   glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sources: {
-    'carto-voyager': {
+    // Esri World Street Map — better road detail (esp. rural roads) than
+    // Carto Voyager for field work. No API key needed.
+    'esri-streets': {
       type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      ],
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      maxzoom: 19,
+      attribution: 'Tiles &copy; Esri',
     },
     'esri-imagery': {
       type: 'raster',
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
       maxzoom: 19,
-      attribution: 'Tiles &copy; <a href="https://www.esri.com">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+      attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics',
+    },
+    // Roads + place-name labels overlay. Shown on top of satellite imagery
+    // so satellite mode is effectively a hybrid view.
+    'esri-transportation': {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: 'Transportation tiles &copy; Esri',
     },
   },
   layers: [
-    { id: 'carto-voyager', type: 'raster', source: 'carto-voyager' },
-    { id: 'esri-imagery', type: 'raster', source: 'esri-imagery', layout: { visibility: 'none' } },
+    { id: 'esri-streets',        type: 'raster', source: 'esri-streets' },
+    { id: 'esri-imagery',        type: 'raster', source: 'esri-imagery', layout: { visibility: 'none' } },
+    { id: 'esri-transportation', type: 'raster', source: 'esri-transportation', layout: { visibility: 'none' } },
   ],
 };
 
-// Toggle which basemap layer is visible. Safe to call before style is loaded.
+// Toggle which basemap layer is visible. In satellite mode we also turn on
+// the transportation overlay so the user still gets roads + place names.
 export function setBasemap(map, name) {
   if (!map || !map.getLayer) return;
   const apply = () => {
-    if (!map.getLayer('carto-voyager') || !map.getLayer('esri-imagery')) return;
+    if (!map.getLayer('esri-streets') || !map.getLayer('esri-imagery')) return;
     if (name === 'satellite') {
-      map.setLayoutProperty('carto-voyager', 'visibility', 'none');
+      map.setLayoutProperty('esri-streets', 'visibility', 'none');
       map.setLayoutProperty('esri-imagery', 'visibility', 'visible');
+      map.setLayoutProperty('esri-transportation', 'visibility', 'visible');
     } else {
-      map.setLayoutProperty('carto-voyager', 'visibility', 'visible');
+      map.setLayoutProperty('esri-streets', 'visibility', 'visible');
       map.setLayoutProperty('esri-imagery', 'visibility', 'none');
+      map.setLayoutProperty('esri-transportation', 'visibility', 'none');
     }
   };
   if (map.isStyleLoaded()) apply();

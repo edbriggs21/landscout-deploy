@@ -10,6 +10,7 @@ import LayerPanel from './LayerPanel.jsx';
 export default function MapView({
   project, owners, accessPoints,
   layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
+  parcelsVisible = true, onToggleParcels,
   selectedOwnerId, dropPinMode,
   onSelectOwner, onMapTap,
 }) {
@@ -420,6 +421,17 @@ export default function MapView({
     }
   }, [layers, loadedLayers, visibleLayerIds, ready]);
 
+  // Toggle the parcel fill/outline (and the selected-owner highlight)
+  // visibility based on the parcelsVisible prop.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const vis = parcelsVisible ? 'visible' : 'none';
+    for (const id of ['parcels-fill', 'parcels-outline', 'parcels-fill-selected', 'parcels-outline-selected']) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+    }
+  }, [parcelsVisible, ready]);
+
   // Highlight the selected owner's parcels by updating the filters on the
   // overlay highlight layers. '__none__' is a sentinel that matches nothing
   // when no owner is selected.
@@ -462,6 +474,8 @@ export default function MapView({
         layers={layers}
         visibleLayerIds={visibleLayerIds || new Set()}
         onToggle={onToggleLayer}
+        parcelsVisible={parcelsVisible}
+        onToggleParcels={onToggleParcels}
       />
       <button
         type="button"

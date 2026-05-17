@@ -37,6 +37,9 @@ export default function App() {
 
   // For "tap on map to drop a pin" mode
   const [dropPinMode, setDropPinMode] = useState(false);
+  // Toggle for the parcel fill/outline layers (persisted)
+  const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
+  const setParcelsVisible = (v) => { identity.setParcelsVisible(v); setParcelsVisibleState(v); };
   // For "tap on map to set schedule start point" mode
   const [pickStartMode, setPickStartMode] = useState(false);
 
@@ -213,6 +216,8 @@ export default function App() {
         loadedLayers={loadedLayers}
         visibleLayerIds={visibleLayerIds || new Set()}
         onToggleLayer={toggleLayer}
+        parcelsVisible={parcelsVisible}
+        onToggleParcels={() => setParcelsVisible(!parcelsVisible)}
         selectedOwnerId={selectedOwnerId}
         dropPinMode={dropPinMode || pickStartMode}
         onSelectOwner={(id) => selectOwner(id)}

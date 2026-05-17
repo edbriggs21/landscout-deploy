@@ -21,3 +21,11 @@ export function getBasemap() {
 export function setBasemapPref(name) {
   try { localStorage.setItem(BASEMAP_KEY, name); } catch {}
 }
+
+const PARCELS_KEY = 'deploy_parcels_visible';
+export function getParcelsVisible() {
+  try { const v = localStorage.getItem(PARCELS_KEY); return v == null ? true : v === '1'; } catch { return true; }
+}
+export function setParcelsVisible(v) {
+  try { localStorage.setItem(PARCELS_KEY, v ? '1' : '0'); } catch {}
+}

@@ -338,11 +338,16 @@ export default function MapView({
                 ],
                 'circle-stroke-color': [
                   'case',
-                  ['==', ['get', 'node_status'], 'retrieved'], '#065F46',
-                  ['==', ['get', 'node_status'], 'deployed'],  '#92400E',
+                  ['==', ['get', 'node_status'], 'retrieved'], '#FFFFFF',
+                  ['==', ['get', 'node_status'], 'deployed'],  '#FFFFFF',
                   psColor,
                 ],
-                'circle-stroke-width': psWidth,
+                'circle-stroke-width': [
+                  'case',
+                  ['==', ['get', 'node_status'], 'retrieved'], 2,
+                  ['==', ['get', 'node_status'], 'deployed'],  2,
+                  psWidth,
+                ],
                 'circle-opacity': fillOpacity || 1,
               },
             }, 'parcels-fill');

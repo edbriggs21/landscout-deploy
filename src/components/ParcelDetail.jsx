@@ -5,6 +5,7 @@ import ScoutTools from './ScoutTools.jsx';
 import CrewTools from './CrewTools.jsx';
 import PhotoGallery from './PhotoGallery.jsx';
 import Schedule from './Schedule.jsx';
+import Plan from './Plan.jsx';
 
 export default function ParcelDetail({
   owner, role, code, name, project,
@@ -29,13 +30,15 @@ export default function ParcelDetail({
     { id: 'access', label: 'Access Points' },
     { id: 'photos', label: 'Photos' },
     { id: 'edit', label: 'Edit Ops' },
-    { id: 'schedule', label: 'Schedule' },
+    { id: 'plan', label: 'Plan' },
+    { id: 'schedule', label: 'Route' },
   ];
   const crewTabs = [
     { id: 'ops', label: 'Ops Info' },
     { id: 'intel', label: 'Scout Intel' },
     { id: 'status', label: 'Status' },
-    { id: 'schedule', label: 'Schedule' },
+    { id: 'plan', label: 'Plan' },
+    { id: 'schedule', label: 'Route' },
   ];
   const tabs = role === 'crew' ? crewTabs : scoutTabs;
 
@@ -107,6 +110,14 @@ export default function ParcelDetail({
           )}
           {role === 'crew' && tab === 'status' && (
             <CrewTools owner={owner} code={code} name={name} onChanged={onChanged} />
+          )}
+          {tab === 'plan' && (
+            <Plan
+              code={code}
+              owners={owners}
+              role={role}
+              onSelectOwner={onSelectOwner}
+            />
           )}
           {tab === 'schedule' && (
             <Schedule

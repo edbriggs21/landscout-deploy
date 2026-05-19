@@ -131,3 +131,7 @@ export async function updateLocation({ code, session_id, name, role, lat, lng, a
 export async function listLocations({ code, session_id }) {
   return postJson('deployment-list-locations', { code, session_id });
 }
+
+export async function listScheduleStops({ code, week_start_date }) {
+  return postJson('deployment-list-schedule-stops', { code, week_start_date });
+}

@@ -135,3 +135,13 @@ export async function listLocations({ code, session_id }) {
 export async function listScheduleStops({ code, week_start_date }) {
   return postJson('deployment-list-schedule-stops', { code, week_start_date });
 }
+
+export async function upsertScheduleStop(body) {
+  return postJson('deployment-plan-upsert-stop-public', body);
+}
+export async function deleteScheduleStop({ code, id }) {
+  return postJson('deployment-plan-delete-stop-public', { code, id });
+}
+export async function reorderScheduleStops({ code, updates }) {
+  return postJson('deployment-plan-reorder-stops-public', { code, updates });
+}

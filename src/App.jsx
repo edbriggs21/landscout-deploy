@@ -8,6 +8,7 @@ import RolePicker from './components/RolePicker.jsx';
 import EmptyProject from './components/EmptyProject.jsx';
 import MapView from './components/MapView.jsx';
 import ParcelDetail from './components/ParcelDetail.jsx';
+import PlanSidebar from './components/PlanSidebar.jsx';
 
 function readUrlParams() {
   const p = new URLSearchParams(window.location.search);
@@ -38,6 +39,7 @@ export default function App() {
   // For "tap on map to drop a pin" mode
   const [dropPinMode, setDropPinMode] = useState(false);
   // Toggle for the parcel fill/outline layers (persisted)
+  const [planOpen, setPlanOpen] = useState(false);
   const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
   const setParcelsVisible = (v) => { identity.setParcelsVisible(v); setParcelsVisibleState(v); };
 
@@ -322,6 +324,14 @@ export default function App() {
         </div>
         <button
           type="button"
+          onClick={() => setPlanOpen(true)}
+          title="Open the weekly deployment plan"
+          className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs text-slate-200 hover:bg-brandSurface flex items-center gap-1"
+        >
+          📋 Plan
+        </button>
+        <button
+          type="button"
           onClick={() => setShareLocation(!shareLocation)}
           title={shareLocation ? (myLocationError ? ('Location sharing on — ' + myLocationError) : 'Location sharing on — tap to stop') : 'Share my location with the team'}
           className={`pointer-events-auto rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 ${shareLocation ? 'bg-landGreen/90 text-deepBlue font-semibold' : 'bg-brandSurface/80 text-slate-300'}`}
@@ -374,6 +384,8 @@ export default function App() {
           onRequestPickStart={() => { setSelectedOwnerId(null); setPickStartMode(true); }}
         />
       )}
+
+      <PlanSidebar open={planOpen} onClose={() => setPlanOpen(false)} code={code} role={role} />
 
       {/* Drop-pin hint banner */}
       {(dropPinMode || pickStartMode) && (

@@ -39,7 +39,7 @@ export default function App() {
   // For "tap on map to drop a pin" mode
   const [dropPinMode, setDropPinMode] = useState(false);
   // Toggle for the parcel fill/outline layers (persisted)
-  const [planOpen, setPlanOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(true);
   const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
   const setParcelsVisible = (v) => { identity.setParcelsVisible(v); setParcelsVisibleState(v); };
 

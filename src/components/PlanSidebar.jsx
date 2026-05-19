@@ -70,7 +70,7 @@ function emptyStop(weekStart, dayDate, nextOrder) {
   };
 }
 
-export default function PlanSidebar({ open, onClose, code, role }) {
+export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNumber, onSelectNode, onFlyTo, onOpenOpsInfo }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
@@ -179,20 +179,47 @@ export default function PlanSidebar({ open, onClose, code, role }) {
     setNewWeek('');
   };
 
-  if (!open) return null;
+  // A small ref map of stop card DOM nodes so we can scroll to the matching
+  // card when the map emits a node click.
+  const cardRefs = React.useRef({});
+  React.useEffect(() => {
+    if (selectedNodeNumber == null) return;
+    const el = cardRefs.current[selectedNodeNumber];
+    if (el && el.scrollIntoView) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [selectedNodeNumber]);
+
+  // Always render (open vs collapsed). When collapsed, show only the toggle
+  // tab on the right edge so the user can re-open without losing screen real
+  // estate. When open, render as a fixed right column.
+  if (!open) {
+    return (
+      <button
+        onClick={onToggle}
+        title="Open weekly plan"
+        style={{
+          position: 'fixed', right: 0, top: 84, zIndex: 25,
+          background: '#161b22', color: '#cdd9e5', border: '1px solid #2a3444', borderRight: 'none',
+          borderTopLeftRadius: 6, borderBottomLeftRadius: 6, padding: '6px 8px', fontSize: 11, cursor: 'pointer',
+        }}>📋 Plan ›</button>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-30 flex justify-end pointer-events-none">
-      {/* Scrim */}
-      <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={onClose}></div>
-      {/* Panel */}
-      <div className="relative pointer-events-auto h-full w-full max-w-[480px] overflow-y-auto"
-           style={{ background: '#0d1117', color: '#cdd9e5', fontFamily: '-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif' }}>
+    <div
+      className="fixed top-0 bottom-0 right-0 z-30 overflow-y-auto"
+      style={{
+        width: '380px',
+        background: '#0d1117', color: '#cdd9e5',
+        borderLeft: '1px solid #2a3444',
+        fontFamily: '-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif',
+      }}>
         {/* Header */}
         <div style={{ padding: '14px 16px', borderBottom: '1px solid #2a3444', position: 'sticky', top: 0, background: '#0d1117', zIndex: 5 }}>
           <div className="flex items-center justify-between mb-2">
             <div style={{ fontSize: 11, letterSpacing: '0.1em', color: '#8b96a3' }}>■ KOLOMA FIELD OPERATIONS</div>
-            <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #2a3444', color: '#cdd9e5', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Close ✕</button>
+            <button onClick={onToggle} title="Collapse" style={{ background: 'transparent', border: '1px solid #2a3444', color: '#cdd9e5', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>›</button>
           </div>
           <div style={{ fontSize: 22, fontWeight: 600, color: '#f0f6fc', marginBottom: 8 }}>Node Placement Schedule</div>
           <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#8b96a3' }}>
@@ -265,10 +292,20 @@ export default function PlanSidebar({ open, onClose, code, role }) {
                   const done = !!s.done_at;
                   const dirUrl = (s.lat != null && s.lng != null) ? `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=driving` : null;
                   const phoneClean = (s.contact_phone || '').replace(/[^\d]/g, '');
-                  return (
-                    <div key={s.id} style={{
-                      background: '#161b22', border: '1px solid #2a3444', borderRadius: 6,
-                      marginBottom: 6, overflow: 'hidden', opacity: done ? 0.6 : 1,
+                  const isSelected = selectedNodeNumber != null && s.node_number === selectedNodeNumber;
+              return (
+                    <div key={s.id}
+                      ref={(el) => { if (el) cardRefs.current[s.node_number] = el; }}
+                      onClick={() => {
+                        if (s.lat != null && s.lng != null && onFlyTo) onFlyTo(s.lat, s.lng);
+                        if (onSelectNode) onSelectNode(s.node_number);
+                      }}
+                      style={{
+                      background: '#161b22',
+                      border: isSelected ? '1px solid #FACC15' : '1px solid #2a3444',
+                      boxShadow: isSelected ? '0 0 0 2px rgba(250, 204, 21, 0.25)' : 'none',
+                      borderRadius: 6, marginBottom: 6, overflow: 'hidden', opacity: done ? 0.6 : 1,
+                      cursor: 'pointer',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'stretch' }}>
                         {/* Big node badge */}
@@ -300,7 +337,11 @@ export default function PlanSidebar({ open, onClose, code, role }) {
                             </div>
                           )}
                           {/* Action row */}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
+                            {s.owner_id && (
+                              <button onClick={() => onOpenOpsInfo && onOpenOpsInfo(s.owner_id)}
+                                style={{ fontSize: 10, padding: '3px 8px', borderRadius: 3, background: '#1c2330', border: '1px solid #2a3444', color: '#cdd9e5', cursor: 'pointer' }}>📋 Ops Info</button>
+                            )}
                             {dirUrl && (
                               <a href={dirUrl} target="_blank" rel="noopener noreferrer"
                                  style={{ fontSize: 10, padding: '3px 8px', borderRadius: 3, background: '#1c2330', border: '1px solid #2a3444', color: '#cdd9e5', textDecoration: 'none' }}>🚗 Directions</a>
@@ -329,7 +370,6 @@ export default function PlanSidebar({ open, onClose, code, role }) {
             );
           })}
         </div>
-      </div>
 
       {/* Stop editor sub-modal */}
       {editing && <StopEditor stop={editing} weekDates={weekDates} onCancel={() => setEditing(null)} onSave={saveEdit} onDelete={editing.id ? deleteEdit : null} />}

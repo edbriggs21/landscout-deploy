@@ -12,6 +12,10 @@ export default function MapView({
   layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
   parcelsVisible = true, onToggleParcels,
   crewLocations = [],
+  rightInset = 0,
+  selectedNodeNumber = null,
+  onSelectNode,
+  onMapReady,
   selectedOwnerId, dropPinMode,
   onSelectOwner, onMapTap,
 }) {
@@ -233,6 +237,15 @@ export default function MapView({
       map.on('mouseleave', 'access-points-symbol', () => { map.getCanvas().style.cursor = ''; });
 
       setReady(true);
+      // Expose a small API to the parent so the Plan sidebar can fly the
+      // map to a node's coords.
+      if (onMapReady) {
+        onMapReady({
+          flyTo: (lat, lng) => {
+            try { map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 15), duration: 700 }); } catch (_) {}
+          },
+        });
+      }
 
       // Apply persisted basemap choice
       setBasemap(map, basemap);
@@ -373,6 +386,18 @@ export default function MapView({
       if (loadedLayers[meta.id] && !map.getLayer(layerId)) {
         try {
           if (gtype.includes('point')) {
+            // Click handler: emit the node_number to the parent so the Plan
+            // sidebar can scroll to and highlight the matching card.
+            map.on('click', layerId, (e) => {
+              const f = e.features && e.features[0];
+              const num = f && f.properties && f.properties.node_number;
+              if (num != null && onSelectNode) {
+                e.preventDefault();
+                onSelectNode(num);
+              }
+            });
+            map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
             // Bigger circles so the canonical node number fits inside them.
             // Scale slightly with zoom so they read at multiple altitudes.
             // circle-color uses a case expression on node_status:
@@ -503,6 +528,62 @@ export default function MapView({
     map.getSource('crew-locations').setData({ type: 'FeatureCollection', features });
   }, [crewLocations, ready]);
 
+  // Tell the map to recompute its size when the right-side inset changes
+  // (sidebar opens/closes). Without this, MapLibre keeps the old viewport.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    // Run on next frame so CSS has applied
+    requestAnimationFrame(() => { try { map.resize(); } catch (_) {} });
+  }, [rightInset, ready]);
+
+  // Pulsing halo on the currently-selected node (when one is chosen via
+  // either map click or sidebar card tap).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const SOURCE = 'selected-node';
+    const LAYER = 'selected-node-halo';
+    if (!map.getSource(SOURCE)) {
+      try {
+        map.addSource(SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({
+          id: LAYER, type: 'circle', source: SOURCE,
+          paint: {
+            'circle-radius': [
+              'interpolate', ['linear'], ['zoom'],
+              10, 12,
+              14, 22,
+              18, 32,
+            ],
+            'circle-color': '#FACC15',
+            'circle-opacity': 0.35,
+            'circle-stroke-color': '#FACC15',
+            'circle-stroke-width': 2,
+          },
+        });
+      } catch (_) {}
+    }
+    // Find the matching node in any loaded overlay layer
+    let target = null;
+    for (const meta of layers) {
+      const gj = loadedLayers[meta.id];
+      if (!gj || !gj.features) continue;
+      for (const f of gj.features) {
+        if (f.properties && f.properties.node_number === selectedNodeNumber) {
+          target = f;
+          break;
+        }
+      }
+      if (target) break;
+    }
+    if (selectedNodeNumber != null && target) {
+      try { map.getSource(SOURCE).setData({ type: 'FeatureCollection', features: [target] }); } catch (_) {}
+    } else {
+      try { map.getSource(SOURCE).setData({ type: 'FeatureCollection', features: [] }); } catch (_) {}
+    }
+  }, [selectedNodeNumber, layers, loadedLayers, ready]);
+
   // Toggle the parcel fill/outline (and the selected-owner highlight)
   // visibility based on the parcelsVisible prop.
   useEffect(() => {
@@ -550,7 +631,7 @@ export default function MapView({
   };
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" style={{ paddingRight: rightInset + 'px', transition: 'padding-right 200ms ease' }}>
       <div ref={containerRef} className="w-full h-full" />
       <LayerPanel
         layers={layers}

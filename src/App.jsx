@@ -9,6 +9,7 @@ import EmptyProject from './components/EmptyProject.jsx';
 import MapView from './components/MapView.jsx';
 import ParcelDetail from './components/ParcelDetail.jsx';
 import PlanSidebar from './components/PlanSidebar.jsx';
+import OpsInfoSidebar from './components/OpsInfoSidebar.jsx';
 
 function readUrlParams() {
   const p = new URLSearchParams(window.location.search);
@@ -40,6 +41,9 @@ export default function App() {
   const [dropPinMode, setDropPinMode] = useState(false);
   // Toggle for the parcel fill/outline layers (persisted)
   const [planOpen, setPlanOpen] = useState(true);
+  const [opsInfoOwnerId, setOpsInfoOwnerId] = useState(null);
+  const [selectedNodeNumber, setSelectedNodeNumber] = useState(null);
+  const mapApiRef = useRef({ flyTo: () => {} }); // populated by MapView via onMapReady
   const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
   const setParcelsVisible = (v) => { identity.setParcelsVisible(v); setParcelsVisibleState(v); };
 
@@ -284,6 +288,10 @@ export default function App() {
         parcelsVisible={parcelsVisible}
         onToggleParcels={() => setParcelsVisible(!parcelsVisible)}
         crewLocations={crewLocations}
+        rightInset={(planOpen ? 380 : 0) + (opsInfoOwnerId ? 360 : 0)}
+        selectedNodeNumber={selectedNodeNumber}
+        onSelectNode={(n) => setSelectedNodeNumber(n)}
+        onMapReady={(api) => { mapApiRef.current = api; }}
         selectedOwnerId={selectedOwnerId}
         dropPinMode={dropPinMode || pickStartMode}
         onSelectOwner={(id) => selectOwner(id)}
@@ -385,7 +393,27 @@ export default function App() {
         />
       )}
 
-      <PlanSidebar open={planOpen} onClose={() => setPlanOpen(false)} code={code} role={role} />
+      <PlanSidebar
+        open={planOpen}
+        onToggle={() => setPlanOpen(o => !o)}
+        code={code}
+        role={role}
+        selectedNodeNumber={selectedNodeNumber}
+        onSelectNode={(n) => setSelectedNodeNumber(n)}
+        onFlyTo={(lat, lng) => mapApiRef.current.flyTo(lat, lng)}
+        onOpenOpsInfo={(ownerId) => setOpsInfoOwnerId(ownerId)}
+      />
+      <OpsInfoSidebar
+        open={!!opsInfoOwnerId}
+        onClose={() => setOpsInfoOwnerId(null)}
+        offsetRightPx={planOpen ? 380 : 0}
+        owner={(data.owners || []).find(o => o.id === opsInfoOwnerId) || null}
+        project={data.project}
+        code={code}
+        name={name}
+        role={role}
+        onChanged={refreshAfterWrite}
+      />
 
       {/* Drop-pin hint banner */}
       {(dropPinMode || pickStartMode) && (

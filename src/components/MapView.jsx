@@ -21,6 +21,16 @@ function nodeColorExpr(blockedIds) {
   ];
 }
 
+// Node outline color: cyan when the node is on NEXT week's schedule,
+// otherwise the normal white ring. Keyed by node_number.
+function nodeStrokeExpr(nextWeekNums) {
+  return [
+    'case',
+    ['in', ['get', 'node_number'], ['literal', nextWeekNums || []]], '#22D3EE',
+    '#FFFFFF',
+  ];
+}
+
 export default function MapView({
   project, owners, accessPoints,
   layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
@@ -438,35 +448,11 @@ export default function MapView({
                   18, Math.max(pointRadius, 16),
                 ],
                 'circle-color': nodeColorExpr(blockedOwnerIds),
-                'circle-stroke-color': '#FFFFFF',
+                'circle-stroke-color': nodeStrokeExpr(nextWeekNodeNumbers),
                 'circle-stroke-width': 2,
                 'circle-opacity': fillOpacity || 1,
               },
             }, 'access-points-symbol');
-
-            // Blue ring marking nodes on NEXT week's schedule. Drawn just
-            // beneath the node dot (beforeId = layerId) so the dot and its
-            // number stay fully visible on top.
-            const ringId = `${layerId}-ring`;
-            try {
-              map.addLayer({
-                id: ringId, type: 'circle', source: sourceId,
-                minzoom, maxzoom,
-                filter: ['in', ['get', 'node_number'], ['literal', nextWeekNodeNumbers || []]],
-                paint: {
-                  'circle-radius': [
-                    'interpolate', ['linear'], ['zoom'],
-                    10, Math.max(pointRadius, 6) + 5,
-                    14, Math.max(pointRadius, 11) + 6,
-                    18, Math.max(pointRadius, 16) + 7,
-                  ],
-                  'circle-color': '#3B82F6',
-                  'circle-opacity': 0,
-                  'circle-stroke-color': '#3B82F6',
-                  'circle-stroke-width': 3,
-                },
-              }, layerId);
-            } catch (_) {}
             // Text label showing the canonical node_number (when present).
             // minzoom raised slightly so labels don't smear into illegibility
             // at far-out zoom levels.
@@ -539,7 +525,6 @@ export default function MapView({
       setVis(layerId);
       setVis(strokeId);
       setVis(`${layerId}-text`);
-      setVis(`${layerId}-ring`);
     }
   }, [layers, loadedLayers, visibleLayerIds, ready]);
 
@@ -556,15 +541,14 @@ export default function MapView({
     }
   }, [blockedOwnerIds, layers, loadedLayers, ready]);
 
-  // Update the blue next-week ring filter when the schedule data loads.
+  // Recolor node outlines cyan when the next-week schedule data loads.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const filt = ['in', ['get', 'node_number'], ['literal', nextWeekNodeNumbers || []]];
     for (const meta of layers) {
-      const ringId = `ovl-${meta.id}-render-ring`;
-      if (map.getLayer(ringId)) {
-        try { map.setFilter(ringId, filt); } catch (_) {}
+      const layerId = `ovl-${meta.id}-render`;
+      if (map.getLayer(layerId)) {
+        try { map.setPaintProperty(layerId, 'circle-stroke-color', nodeStrokeExpr(nextWeekNodeNumbers)); } catch (_) {}
       }
     }
   }, [nextWeekNodeNumbers, layers, loadedLayers, ready]);

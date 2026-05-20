@@ -477,15 +477,35 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
         </div>
 
       {/* Stop editor sub-modal */}
-      {editing && <StopEditor stop={editing} weekDates={weekDates} onCancel={() => setEditing(null)} onSave={saveEdit} onDelete={editing.id ? deleteEdit : null} />}
+      {editing && <StopEditor stop={editing} weekDates={weekDates} code={code} onCancel={() => setEditing(null)} onSave={saveEdit} onDelete={editing.id ? deleteEdit : null} />}
     </div>
   );
 }
 
-function StopEditor({ stop, weekDates, onCancel, onSave, onDelete }) {
+function StopEditor({ stop, weekDates, code, onCancel, onSave, onDelete }) {
   const [form, setForm] = useState(stop);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [nodes, setNodes] = useState([]);
+  const [nodeQuery, setNodeQuery] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api.listAllNodes({ code })
+      .then(res => { if (!cancelled) setNodes(res.nodes || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [code]);
+  const selectedNode = nodes.find(n => n.node_number === Number(form.node_number));
+  const filteredNodes = (() => {
+    const q = nodeQuery.trim().toLowerCase();
+    if (!q) return nodes.slice(0, 60);
+    return nodes.filter(n =>
+      String(n.node_number).includes(q) ||
+      (n.label || '').toLowerCase().includes(q) ||
+      (n.owner_name || '').toLowerCase().includes(q)
+    ).slice(0, 60);
+  })();
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
   const save = async () => {
     if (!form.node_number) { setErr('Node # is required.'); return; }
@@ -502,7 +522,37 @@ function StopEditor({ stop, weekDates, onCancel, onSave, onDelete }) {
           <Field label="Day"><select value={form.day_date} onChange={set('day_date')} style={inp}>{weekDates.map(d => <option key={d} value={d}>{d}</option>)}</select></Field>
           <Field label="Time"><input type="time" value={(form.scheduled_time || '').slice(0,5)} onChange={set('scheduled_time')} style={inp} /></Field>
           <Field label="Action"><select value={form.action} onChange={set('action')} style={inp}><option value="deploy">Deploy</option><option value="retrieve">Retrieve</option></select></Field>
-          <Field label="Node #"><input type="number" min="1" value={form.node_number} onChange={set('node_number')} style={inp} /></Field>
+          <Field label="Node">
+            <div style={{ position: 'relative' }}>
+              <button type="button" onClick={() => setPickerOpen(o => !o)}
+                style={{ ...inp, textAlign: 'left', cursor: 'pointer' }}>
+                {form.node_number
+                  ? `#${form.node_number}${selectedNode ? ' · ' + (selectedNode.owner_name || selectedNode.label || '') : ''}`
+                  : 'Pick a node…'}
+              </button>
+              {pickerOpen && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: '#0d1117', border: '1px solid #2a3444', borderRadius: 6, marginTop: 2, maxHeight: 240, overflowY: 'auto', boxShadow: '0 8px 20px rgba(0,0,0,0.6)' }}>
+                  <input autoFocus type="text" value={nodeQuery} onChange={e => setNodeQuery(e.target.value)}
+                    placeholder="Search number / owner / label"
+                    style={{ ...inp, borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', position: 'sticky', top: 0 }} />
+                  {filteredNodes.length === 0 && <div style={{ padding: 8, fontSize: 11, color: '#5b6675' }}>No matches.</div>}
+                  {filteredNodes.map(n => (
+                    <button key={n.node_number} type="button"
+                      onClick={() => {
+                        setForm(f => ({ ...f, node_number: n.node_number, owner_id: n.owner_id || f.owner_id, owner_name: n.owner_name || f.owner_name }));
+                        setPickerOpen(false); setNodeQuery('');
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid #1c2330', color: '#cdd9e5', padding: '6px 8px', fontSize: 11, cursor: 'pointer' }}>
+                      <span style={{ fontWeight: 700, color: '#f0f6fc' }}>#{n.node_number}</span>
+                      <span style={{ color: '#8b96a3' }}> · {n.label}</span>
+                      {n.owner_name && <span style={{ color: '#8b96a3' }}> · {n.owner_name}</span>}
+                      {n.scheduled && <span style={{ color: '#e8a430', marginLeft: 4 }}>● scheduled</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Field>
           <Field label="Order"><input type="number" min="1" value={form.stop_order} onChange={set('stop_order')} style={inp} /></Field>
           <Field label="Crew"><input type="text" value={form.crew_label || ''} onChange={set('crew_label')} style={inp} placeholder="Crew A" /></Field>
         </div>

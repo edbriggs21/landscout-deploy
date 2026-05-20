@@ -149,3 +149,7 @@ export async function reorderScheduleStops({ code, updates }) {
 export async function copyWeek({ code, from_week_start, to_week_start }) {
   return postJson('deployment-plan-copy-week-public', { code, from_week_start, to_week_start });
 }
+
+export async function listAllNodes({ code }) {
+  return postJson('deployment-list-all-nodes', { code });
+}

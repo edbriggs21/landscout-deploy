@@ -334,14 +334,6 @@ export default function App() {
         </div>
         <button
           type="button"
-          onClick={() => setPlanOpen(true)}
-          title="Open the weekly deployment plan"
-          className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs text-slate-200 hover:bg-brandSurface flex items-center gap-1"
-        >
-          📋 Plan
-        </button>
-        <button
-          type="button"
           onClick={() => setShareLocation(!shareLocation)}
           title={shareLocation ? (myLocationError ? ('Location sharing on — ' + myLocationError) : 'Location sharing on — tap to stop') : 'Share my location with the team'}
           className={`pointer-events-auto rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 ${shareLocation ? 'bg-landGreen/90 text-deepBlue font-semibold' : 'bg-brandSurface/80 text-slate-300'}`}

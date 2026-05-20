@@ -21,12 +21,12 @@ function nodeColorExpr(blockedIds) {
   ];
 }
 
-// Node outline color: cyan when the node is on NEXT week's schedule,
+// Node outline color: magenta when the node is on NEXT week's schedule,
 // otherwise the normal white ring. Keyed by node_number.
 function nodeStrokeExpr(nextWeekNums) {
   return [
     'case',
-    ['in', ['get', 'node_number'], ['literal', nextWeekNums || []]], '#22D3EE',
+    ['in', ['get', 'node_number'], ['literal', nextWeekNums || []]], '#C026D3',
     '#FFFFFF',
   ];
 }

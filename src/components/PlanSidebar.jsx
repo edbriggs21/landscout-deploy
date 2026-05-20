@@ -139,6 +139,46 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
     await refresh();
   };
 
+  // --- Drag-and-drop reordering within a day --------------------------------
+  const [drag, setDrag] = React.useState(null);
+  // drag = { id, dayStops: [...], fromIdx, overIdx }
+
+  const beginDrag = (e, stop, dayStops, idx) => {
+    e.stopPropagation();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    setDrag({ id: stop.id, dayStops, fromIdx: idx, overIdx: idx });
+  };
+
+  const onDragPointerMove = (e) => {
+    if (!drag) return;
+    const y = e.clientY;
+    let overIdx = drag.fromIdx;
+    for (let i = 0; i < drag.dayStops.length; i++) {
+      const el = cardRefs.current[drag.dayStops[i].node_number];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const mid = r.top + r.height / 2;
+      if (y < mid) { overIdx = i; break; }
+      overIdx = i;
+    }
+    if (overIdx !== drag.overIdx) setDrag(d => (d ? { ...d, overIdx } : d));
+  };
+
+  const endDrag = async (e) => {
+    if (!drag) return;
+    const d = drag;
+    setDrag(null);
+    if (d.overIdx === d.fromIdx) return;
+    const ids = d.dayStops.map(x => x.id);
+    const [moved] = ids.splice(d.fromIdx, 1);
+    ids.splice(d.overIdx, 0, moved);
+    const updates = ids.map((id, i) => ({ id, stop_order: i + 1 }));
+    try {
+      await api.reorderScheduleStops({ code, updates });
+      await refresh();
+    } catch (err) { setError(err.message || 'Reorder failed'); }
+  };
+
   const moveStopToDay = async (stop, toDate) => {
     if (toDate === stop.day_date) return;
     const toCount = (stopsByDay.get(toDate) || []).length;
@@ -293,25 +333,37 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
                   const dirUrl = (s.lat != null && s.lng != null) ? `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=driving` : null;
                   const phoneClean = (s.contact_phone || '').replace(/[^\d]/g, '');
                   const isSelected = selectedNodeNumber != null && s.node_number === selectedNodeNumber;
+              const isDragging = drag && drag.id === s.id;
+              const isDropTarget = drag && drag.id !== s.id && drag.dayStops.some(x => x.id === s.id) && drag.dayStops[drag.overIdx] && drag.dayStops[drag.overIdx].id === s.id;
               return (
                     <div key={s.id}
                       ref={(el) => { if (el) cardRefs.current[s.node_number] = el; }}
                       onClick={() => {
+                        if (drag) return;
                         if (s.lat != null && s.lng != null && onFlyTo) onFlyTo(s.lat, s.lng);
                         if (onSelectNode) onSelectNode(s.node_number);
                       }}
                       style={{
                       background: '#161b22',
                       border: isSelected ? '1px solid #FACC15' : '1px solid #2a3444',
-                      boxShadow: isSelected ? '0 0 0 2px rgba(250, 204, 21, 0.25)' : 'none',
-                      borderRadius: 6, marginBottom: 6, overflow: 'hidden', opacity: done ? 0.6 : 1,
+                      borderTop: isDropTarget ? '2px solid #9ACD32' : (isSelected ? '1px solid #FACC15' : '1px solid #2a3444'),
+                      boxShadow: isSelected ? '0 0 0 2px rgba(250, 204, 21, 0.25)' : (isDragging ? '0 6px 16px rgba(0,0,0,0.55)' : 'none'),
+                      borderRadius: 6, marginBottom: 6, overflow: 'hidden',
+                      opacity: isDragging ? 0.45 : (done ? 0.6 : 1),
                       cursor: 'pointer',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                        {/* Big node badge */}
-                        <div style={{ background: ac.bg, color: ac.fg, padding: '8px 10px', minWidth: 54, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        {/* Big node badge — doubles as the drag handle */}
+                        <div
+                          onPointerDown={canEdit ? (e) => beginDrag(e, s, stops, idx) : undefined}
+                          onPointerMove={canEdit ? onDragPointerMove : undefined}
+                          onPointerUp={canEdit ? endDrag : undefined}
+                          onPointerCancel={canEdit ? () => setDrag(null) : undefined}
+                          title={canEdit ? 'Drag to reorder' : undefined}
+                          style={{ background: ac.bg, color: ac.fg, padding: '8px 10px', minWidth: 54, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', touchAction: 'none', cursor: canEdit ? 'grab' : 'default' }}>
                           <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, textDecoration: done ? 'line-through' : 'none' }}>{s.node_number}</div>
                           <div style={{ fontSize: 8, letterSpacing: '0.1em', opacity: 0.8 }}>NODE</div>
+                          {canEdit && <div style={{ fontSize: 10, lineHeight: 1, marginTop: 3, opacity: 0.7 }}>⠿</div>}
                         </div>
                         {/* Body */}
                         <div style={{ flex: 1, padding: '8px 10px', minWidth: 0 }}>

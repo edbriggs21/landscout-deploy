@@ -328,7 +328,7 @@ export default function App() {
       />
 
       {/* Top status bar */}
-      <div className="absolute top-0 left-0 right-0 p-3 safe-top flex items-center justify-between gap-2 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
+      <div className="absolute top-0 left-0 p-3 safe-top flex items-center justify-between gap-2 bg-gradient-to-b from-black/50 to-transparent pointer-events-none" style={{ right: ((planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)) + 'px', transition: 'right 200ms ease' }}>
         <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs">
           <span className="text-slate-400">Project:</span> <span className="text-white font-medium">{data.project?.name}</span>
         </div>

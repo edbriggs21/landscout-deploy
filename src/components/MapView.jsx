@@ -660,7 +660,7 @@ export default function MapView({
         type="button"
         onClick={cycleBasemap}
         title={basemap === 'satellite' ? 'Switch to streets' : 'Switch to satellite'}
-        className="absolute right-3 bottom-24 z-10 bg-brandSurface/95 border border-brandBorder rounded-lg px-3 py-2 text-sm text-white shadow-lg flex items-center gap-2 hover:border-landGreen safe-bottom"
+        className="absolute left-3 bottom-24 z-10 bg-brandSurface/95 border border-brandBorder rounded-lg px-3 py-2 text-sm text-white shadow-lg flex items-center gap-2 hover:border-landGreen safe-bottom"
         style={{ backdropFilter: 'blur(6px)' }}
       >
         {basemap === 'satellite' ? '🗺️ Streets' : '🛰️ Satellite'}

@@ -4,7 +4,7 @@ export default function LayerPanel({ layers, visibleLayerIds, onToggle, parcelsV
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="absolute right-3 top-14 z-10 safe-top">
+    <div className="absolute left-3 top-14 z-10 safe-top">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}

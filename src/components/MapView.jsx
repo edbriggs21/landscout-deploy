@@ -391,10 +391,12 @@ export default function MapView({
             // sidebar can scroll to and highlight the matching card.
             map.on('click', layerId, (e) => {
               const f = e.features && e.features[0];
-              const num = f && f.properties && f.properties.node_number;
+              const props = (f && f.properties) || {};
+              const num = props.node_number;
+              const ownerId = props.owner_id || null;
               if (num != null && onSelectNode) {
                 e.preventDefault();
-                onSelectNode(num);
+                onSelectNode(num, ownerId);
               }
             });
             map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });

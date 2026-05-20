@@ -292,7 +292,7 @@ export default function App() {
         crewLocations={crewLocations}
         rightInset={(planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)}
         selectedNodeNumber={selectedNodeNumber}
-        onSelectNode={(n) => setSelectedNodeNumber(n)}
+        onSelectNode={(n, ownerId) => { setSelectedNodeNumber(n); if (ownerId) selectOwner(ownerId, { initialTab: 'ops' }); }}
         onMapReady={(api) => { mapApiRef.current = api; }}
         selectedOwnerId={selectedOwnerId}
         dropPinMode={dropPinMode || pickStartMode}

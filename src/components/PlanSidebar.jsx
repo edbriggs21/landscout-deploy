@@ -572,7 +572,7 @@ function StopEditor({ stop, weekDates, code, onCancel, onSave, onDelete }) {
     finally { setBusy(false); }
   };
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-auto" style={{ background: 'rgba(0,0,0,0.5)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-auto" style={{ background: 'rgba(0,0,0,0.5)' }}>
       <div style={{ background: '#161b22', border: '1px solid #2a3444', color: '#cdd9e5', width: '92%', maxWidth: 440, borderRadius: 10, padding: 16, fontFamily: '-apple-system, BlinkMacSystemFont, Inter, sans-serif' }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f6fc', marginBottom: 10 }}>{stop.id ? 'Edit stop' : 'New stop'}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>

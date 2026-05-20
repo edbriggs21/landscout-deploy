@@ -85,6 +85,17 @@ function currentMondayISO() {
   return `${m.getFullYear()}-${pad(m.getMonth() + 1)}-${pad(m.getDate())}`;
 }
 
+// The Monday (YYYY-MM-DD) of the week containing an arbitrary ISO date.
+function mondayOfDate(iso) {
+  if (!iso) return iso;
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay();             // 0 Sun .. 6 Sat
+  const back = dow === 0 ? 6 : dow - 1;   // days back to Monday
+  dt.setUTCDate(dt.getUTCDate() - back);
+  return dt.toISOString().slice(0, 10);
+}
+
 function emptyStop(weekStart, dayDate, nextOrder) {
   return {
     id: null,
@@ -576,7 +587,9 @@ function StopEditor({ stop, weekDates, code, onCancel, onSave, onDelete }) {
       <div style={{ background: '#161b22', border: '1px solid #2a3444', color: '#cdd9e5', width: '92%', maxWidth: 440, borderRadius: 10, padding: 16, fontFamily: '-apple-system, BlinkMacSystemFont, Inter, sans-serif' }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#f0f6fc', marginBottom: 10 }}>{stop.id ? 'Edit stop' : 'New stop'}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Field label="Day"><select value={form.day_date} onChange={set('day_date')} style={inp}>{weekDates.map(d => <option key={d} value={d}>{d}</option>)}</select></Field>
+          <Field label="Day"><input type="date" value={form.day_date || ''}
+            onChange={(e) => { const d = e.target.value; setForm(f => ({ ...f, day_date: d, week_start_date: d ? mondayOfDate(d) : f.week_start_date })); }}
+            style={inp} /></Field>
           <Field label="Time"><input type="time" value={(form.scheduled_time || '').slice(0,5)} onChange={set('scheduled_time')} style={inp} /></Field>
           <Field label="Action"><select value={form.action} onChange={set('action')} style={inp}><option value="deploy">Deploy</option><option value="retrieve">Retrieve</option></select></Field>
           <Field label="Node">

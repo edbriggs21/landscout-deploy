@@ -37,6 +37,15 @@ function fmtDateChip(iso) {
   return `${m} · ${String(d).padStart(2,'0')} · ${y}`;
 }
 
+// Shift an ISO date by N days.
+function shiftDays(iso, days) {
+  if (!iso) return iso;
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
 // Compute the Monday-based 7-day list for a given week_start_date.
 function buildWeekDates(weekStart) {
   if (!weekStart) return [];
@@ -219,6 +228,28 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
     setNewWeek('');
   };
 
+  // Navigate to the previous / next Monday-based week.
+  const goWeek = (deltaDays) => {
+    const cur = data?.week_start_date;
+    if (!cur) return;
+    refresh(shiftDays(cur, deltaDays));
+  };
+
+  // Seed the currently-viewed (empty) week from the previous week's plan.
+  const [copying, setCopying] = useState(false);
+  const copyFromPrevWeek = async () => {
+    const toWeek = data?.week_start_date;
+    if (!toWeek) return;
+    const fromWeek = shiftDays(toWeek, -7);
+    setCopying(true); setError('');
+    try {
+      const res = await api.copyWeek({ code, from_week_start: fromWeek, to_week_start: toWeek });
+      await refresh(toWeek);
+    } catch (e) {
+      setError(e.message || 'Copy failed');
+    } finally { setCopying(false); }
+  };
+
   // A small ref map of stop card DOM nodes so we can scroll to the matching
   // card when the map emits a node click.
   const cardRefs = React.useRef({});
@@ -262,8 +293,16 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
             <button onClick={onToggle} title="Collapse" style={{ background: 'transparent', border: '1px solid #2a3444', color: '#cdd9e5', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>›</button>
           </div>
           <div style={{ fontSize: 22, fontWeight: 600, color: '#f0f6fc', marginBottom: 8 }}>Node Placement Schedule</div>
-          <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#8b96a3' }}>
-            <div>Week of <span style={{ color: '#cdd9e5' }}>{data?.week_start_date ? fmtDateLong(data.week_start_date) : '—'}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#8b96a3' }}>
+            <button onClick={() => goWeek(-7)} disabled={!data?.week_start_date}
+              title="Previous week"
+              style={{ background: '#161b22', border: '1px solid #2a3444', color: '#cdd9e5', borderRadius: 4, padding: '1px 7px', fontSize: 13, cursor: 'pointer' }}>‹</button>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              Week of <span style={{ color: '#cdd9e5' }}>{data?.week_start_date ? fmtDateLong(data.week_start_date) : '—'}</span>
+            </div>
+            <button onClick={() => goWeek(7)} disabled={!data?.week_start_date}
+              title="Next week"
+              style={{ background: '#161b22', border: '1px solid #2a3444', color: '#cdd9e5', borderRadius: 4, padding: '1px 7px', fontSize: 13, cursor: 'pointer' }}>›</button>
           </div>
           {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 10 }}>
@@ -305,6 +344,20 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
           {!loading && (!data?.week_start_date) && (
             <div style={{ fontSize: 13, color: '#8b96a3', background: '#161b22', border: '1px solid #2a3444', borderRadius: 6, padding: 14 }}>
               No plan yet. Pick a Monday above and tap "New week" to start.
+            </div>
+          )}
+          {data?.week_start_date && canEdit && (data.stops || []).length === 0 && (
+            <div style={{ background: '#161b22', border: '1px solid #2a3444', borderRadius: 6, padding: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: '#cdd9e5', marginBottom: 8 }}>
+                This week is empty. Build it from scratch with <strong>+ Add</strong> on any day, or seed it from last week:
+              </div>
+              <button onClick={copyFromPrevWeek} disabled={copying}
+                style={{ background: '#9ACD32', color: '#0B2A4A', border: 'none', borderRadius: 5, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: copying ? 0.6 : 1 }}>
+                {copying ? 'Copying…' : '⧉ Copy last week into this week'}
+              </button>
+              <div style={{ fontSize: 10, color: '#5b6675', marginTop: 6 }}>
+                Copies every stop from {fmtDateLong(shiftDays(data.week_start_date, -7))}, shifted forward 7 days.
+              </div>
             </div>
           )}
           {data?.week_start_date && weekDates.map((date, i) => {

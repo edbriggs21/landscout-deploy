@@ -145,3 +145,7 @@ export async function deleteScheduleStop({ code, id }) {
 export async function reorderScheduleStops({ code, updates }) {
   return postJson('deployment-plan-reorder-stops-public', { code, updates });
 }
+
+export async function copyWeek({ code, from_week_start, to_week_start }) {
+  return postJson('deployment-plan-copy-week-public', { code, from_week_start, to_week_start });
+}

@@ -22,13 +22,14 @@ function setUrlParams({ code, role }) {
   window.history.replaceState({}, '', url.toString());
 }
 
-// The Monday (YYYY-MM-DD) of the calendar week AFTER the current one.
-function computeNextMonday() {
+// The Monday (YYYY-MM-DD) of the calendar week `weekOffset` weeks from now.
+// weekOffset 0 = current week, 1 = next week.
+function mondayISO(weekOffset) {
   const now = new Date();
   const dow = now.getDay();                  // 0 Sun .. 6 Sat
   const toMonday = dow === 0 ? -6 : 1 - dow;  // days back to this week's Monday
   const m = new Date(now);
-  m.setDate(now.getDate() + toMonday + 7);    // +7 -> next week's Monday
+  m.setDate(now.getDate() + toMonday + weekOffset * 7);
   const pad = (n) => String(n).padStart(2, '0');
   return `${m.getFullYear()}-${pad(m.getMonth() + 1)}-${pad(m.getDate())}`;
 }
@@ -47,6 +48,7 @@ export default function App() {
   const [loadedLayers, setLoadedLayers] = useState({}); // { [layer_id]: geojson }
   const [visibleLayerIds, setVisibleLayerIds] = useState(null); // Set | null (init from data)
   const [nextWeekNodes, setNextWeekNodes] = useState([]); // node_numbers scheduled next week
+  const [currentWeekNodes, setCurrentWeekNodes] = useState([]); // node_numbers scheduled this week
 
   // For "tap on map to drop a pin" mode
   const [dropPinMode, setDropPinMode] = useState(false);
@@ -122,18 +124,22 @@ export default function App() {
     return () => { cancelled = true; clearInterval(id); };
   }, [code]);
 
-  // Fetch next calendar week's schedule so the map can ring those nodes.
+  // Fetch this week's + next week's schedule so the map can ring those nodes.
   useEffect(() => {
     if (!code) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.listScheduleStops({ code, week_start_date: computeNextMonday() });
+        const [thisW, nextW] = await Promise.all([
+          api.listScheduleStops({ code, week_start_date: mondayISO(0) }),
+          api.listScheduleStops({ code, week_start_date: mondayISO(1) }),
+        ]);
         if (cancelled) return;
-        const nums = [...new Set((res.stops || [])
+        const nums = (res) => [...new Set((res.stops || [])
           .map(s => s.node_number)
           .filter(n => n != null))];
-        setNextWeekNodes(nums);
+        setCurrentWeekNodes(nums(thisW));
+        setNextWeekNodes(nums(nextW));
       } catch (e) { /* ignore - the ring just stays empty */ }
     })();
     return () => { cancelled = true; };
@@ -320,6 +326,7 @@ export default function App() {
         onToggleOwnerNumbers={() => setOwnerNumbersVisible(!ownerNumbersVisible)}
         crewLocations={crewLocations}
         nextWeekNodeNumbers={nextWeekNodes}
+        currentWeekNodeNumbers={currentWeekNodes}
         rightInset={(planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)}
         selectedNodeNumber={selectedNodeNumber}
         onSelectNode={(n) => { setSelectedNodeNumber(n); setPlanOpen(true); }}

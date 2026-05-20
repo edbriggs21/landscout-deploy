@@ -21,12 +21,17 @@ function nodeColorExpr(blockedIds) {
   ];
 }
 
-// Node outline color: magenta when the node is on NEXT week's schedule,
-// otherwise the normal white ring. Keyed by node_number.
-function nodeStrokeExpr(nextWeekNums) {
+// Node outline color (the ring on each dot):
+//   magenta when the node is on NEXT week's schedule, OR on THIS week's
+//   schedule and still undeployed; otherwise the normal white ring.
+function nodeStrokeExpr(nextWeekNums, currentWeekNums) {
   return [
     'case',
     ['in', ['get', 'node_number'], ['literal', nextWeekNums || []]], '#C026D3',
+    ['all',
+      ['in', ['get', 'node_number'], ['literal', currentWeekNums || []]],
+      ['==', ['get', 'node_status'], 'untouched'],
+    ], '#C026D3',
     '#FFFFFF',
   ];
 }
@@ -38,6 +43,7 @@ export default function MapView({
   ownerNumbersVisible = false, onToggleOwnerNumbers,
   crewLocations = [],
   nextWeekNodeNumbers = [],
+  currentWeekNodeNumbers = [],
   rightInset = 0,
   selectedNodeNumber = null,
   onSelectNode,
@@ -448,7 +454,7 @@ export default function MapView({
                   18, Math.max(pointRadius, 16),
                 ],
                 'circle-color': nodeColorExpr(blockedOwnerIds),
-                'circle-stroke-color': nodeStrokeExpr(nextWeekNodeNumbers),
+                'circle-stroke-color': nodeStrokeExpr(nextWeekNodeNumbers, currentWeekNodeNumbers),
                 'circle-stroke-width': 2,
                 'circle-opacity': fillOpacity || 1,
               },
@@ -541,17 +547,17 @@ export default function MapView({
     }
   }, [blockedOwnerIds, layers, loadedLayers, ready]);
 
-  // Recolor node outlines cyan when the next-week schedule data loads.
+  // Recolor node outlines (magenta ring) when the schedule data loads.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     for (const meta of layers) {
       const layerId = `ovl-${meta.id}-render`;
       if (map.getLayer(layerId)) {
-        try { map.setPaintProperty(layerId, 'circle-stroke-color', nodeStrokeExpr(nextWeekNodeNumbers)); } catch (_) {}
+        try { map.setPaintProperty(layerId, 'circle-stroke-color', nodeStrokeExpr(nextWeekNodeNumbers, currentWeekNodeNumbers)); } catch (_) {}
       }
     }
-  }, [nextWeekNodeNumbers, layers, loadedLayers, ready]);
+  }, [nextWeekNodeNumbers, currentWeekNodeNumbers, layers, loadedLayers, ready]);
 
   // Sync the crew-locations source with the polled list of active crew.
   useEffect(() => {

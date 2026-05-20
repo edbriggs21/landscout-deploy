@@ -36,6 +36,15 @@ function nodeStrokeExpr(nextWeekNums, currentWeekNums) {
   ];
 }
 
+// A point layer gets the deployment-status styling (status colors, node
+// numbers, magenta ring) only if its features carry node_number — i.e. it is
+// the canonical tracking layer. Every other point layer keeps its own style.
+function isNodeStatusLayer(geojson) {
+  const feats = geojson && geojson.features;
+  if (!Array.isArray(feats)) return false;
+  return feats.some(f => f && f.properties && f.properties.node_number != null);
+}
+
 export default function MapView({
   project, owners, accessPoints,
   layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
@@ -443,10 +452,12 @@ export default function MapView({
             // circle-color: retrieved -> green, deployed -> yellow,
             //   blocked parcel -> red, otherwise (undeployed) -> slate gray.
             // Every node gets a white outline so it reads on any basemap.
+            const nodeLayer = isNodeStatusLayer(loadedLayers[meta.id]);
             map.addLayer({
               id: layerId, type: 'circle', source: sourceId,
               minzoom, maxzoom,
-              paint: {
+              paint: nodeLayer ? {
+                // Canonical tracking layer: status colors + numbers + ring.
                 'circle-radius': [
                   'interpolate', ['linear'], ['zoom'],
                   10, Math.max(pointRadius, 6),
@@ -456,6 +467,14 @@ export default function MapView({
                 'circle-color': nodeColorExpr(blockedOwnerIds),
                 'circle-stroke-color': nodeStrokeExpr(nextWeekNodeNumbers, currentWeekNodeNumbers),
                 'circle-stroke-width': 2,
+                'circle-opacity': fillOpacity || 1,
+              } : {
+                // Other point layers: render with the layer's own configured
+                // style, matching what the LandScout legend shows.
+                'circle-radius': pointRadius,
+                'circle-color': color,
+                'circle-stroke-color': psColor,
+                'circle-stroke-width': psWidth,
                 'circle-opacity': fillOpacity || 1,
               },
             }, 'access-points-symbol');
@@ -540,6 +559,7 @@ export default function MapView({
     const map = mapRef.current;
     if (!map || !ready) return;
     for (const meta of layers) {
+      if (!isNodeStatusLayer(loadedLayers[meta.id])) continue;
       const layerId = `ovl-${meta.id}-render`;
       if (map.getLayer(layerId)) {
         try { map.setPaintProperty(layerId, 'circle-color', nodeColorExpr(blockedOwnerIds)); } catch (_) {}
@@ -552,6 +572,7 @@ export default function MapView({
     const map = mapRef.current;
     if (!map || !ready) return;
     for (const meta of layers) {
+      if (!isNodeStatusLayer(loadedLayers[meta.id])) continue;
       const layerId = `ovl-${meta.id}-render`;
       if (map.getLayer(layerId)) {
         try { map.setPaintProperty(layerId, 'circle-stroke-color', nodeStrokeExpr(nextWeekNodeNumbers, currentWeekNodeNumbers)); } catch (_) {}

@@ -132,8 +132,8 @@ export async function listLocations({ code, session_id }) {
   return postJson('deployment-list-locations', { code, session_id });
 }
 
-export async function listScheduleStops({ code, week_start_date }) {
-  return postJson('deployment-list-schedule-stops', { code, week_start_date });
+export async function listScheduleStops({ code, week_start_date, node_number }) {
+  return postJson('deployment-list-schedule-stops', { code, week_start_date, node_number });
 }
 
 export async function upsertScheduleStop(body) {

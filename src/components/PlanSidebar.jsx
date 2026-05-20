@@ -97,7 +97,28 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (open) refresh(); /* eslint-disable-next-line */ }, [open, code]);
+  // Tracks which node the plan has already navigated to, so a map-node click
+  // jumps to that node's week exactly once (and doesn't fight manual paging).
+  const navNodeRef = React.useRef(null);
+  const goToNodeWeek = async (num) => {
+    navNodeRef.current = num;
+    setError(''); setLoading(true);
+    try {
+      const res = await api.listScheduleStops({ code, node_number: num });
+      setData(res && res.week_start_date ? res : await api.listScheduleStops({ code }));
+    } catch (e) {
+      setError(e.message || 'Failed to load plan');
+    } finally { setLoading(false); }
+  };
+
+  // On open: jump straight to the selected node's week if a node is selected,
+  // otherwise load the most recent week.
+  useEffect(() => {
+    if (!open) return;
+    if (selectedNodeNumber != null) goToNodeWeek(selectedNodeNumber);
+    else refresh();
+    /* eslint-disable-next-line */
+  }, [open, code]);
 
   const weeks = useMemo(() => {
     if (!data) return [];
@@ -251,15 +272,20 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
   };
 
   // A small ref map of stop card DOM nodes so we can scroll to the matching
-  // card when the map emits a node click.
+  // card when a node is selected (from the map or a sidebar card).
   const cardRefs = React.useRef({});
   React.useEffect(() => {
-    if (selectedNodeNumber == null) return;
+    if (selectedNodeNumber == null || !open) return;
     const el = cardRefs.current[selectedNodeNumber];
     if (el && el.scrollIntoView) {
+      // Node is on the week currently shown — just scroll to its card.
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      navNodeRef.current = selectedNodeNumber;
+      return;
     }
-  }, [selectedNodeNumber]);
+    // Node is on a different week — load the week that contains it.
+    if (navNodeRef.current !== selectedNodeNumber) goToNodeWeek(selectedNodeNumber);
+  }, [selectedNodeNumber, data, open]);
 
   // Always render (open vs collapsed). When collapsed, show only the toggle
   // tab on the right edge so the user can re-open without losing screen real

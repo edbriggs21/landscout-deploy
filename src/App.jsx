@@ -322,7 +322,7 @@ export default function App() {
         nextWeekNodeNumbers={nextWeekNodes}
         rightInset={(planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)}
         selectedNodeNumber={selectedNodeNumber}
-        onSelectNode={(n, ownerId) => { setSelectedNodeNumber(n); if (ownerId) selectOwner(ownerId, { initialTab: 'ops' }); }}
+        onSelectNode={(n) => { setSelectedNodeNumber(n); setPlanOpen(true); }}
         onMapReady={(api) => { mapApiRef.current = api; }}
         selectedOwnerId={selectedOwnerId}
         dropPinMode={dropPinMode || pickStartMode}

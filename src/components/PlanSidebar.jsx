@@ -37,6 +37,19 @@ function fmtDateChip(iso) {
   return `${m} · ${String(d).padStart(2,'0')} · ${y}`;
 }
 
+// "May 18 – 24" (or "Jun 29 – Jul 5" across a month boundary) for the
+// week-picker dropdown.
+function fmtWeekRange(weekStart) {
+  if (!weekStart) return '';
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const end = shiftDays(weekStart, 6);
+  const [, ms, ds] = weekStart.split('-').map(Number);
+  const [, me, de] = end.split('-').map(Number);
+  const left = `${MON[ms-1]} ${ds}`;
+  const right = ms === me ? String(de) : `${MON[me-1]} ${de}`;
+  return `${left} – ${right}`;
+}
+
 // Shift an ISO date by N days.
 function shiftDays(iso, days) {
   if (!iso) return iso;
@@ -120,14 +133,12 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
     /* eslint-disable-next-line */
   }, [open, code]);
 
-  const weeks = useMemo(() => {
-    if (!data) return [];
-    // The endpoint returns the active week's stops but not the full list of
-    // weeks — we derive it from data if multiple weeks exist. For now, we
-    // surface only the current week + the option to type in a new one.
-    const seen = new Set();
-    if (data.week_start_date) seen.add(data.week_start_date);
-    return [...seen].sort();
+  // Every week that has stops, for the week-picker dropdown. Always includes
+  // the week currently shown (even a brand-new empty one).
+  const weekOptions = useMemo(() => {
+    const set = new Set(data?.all_weeks || []);
+    if (data?.week_start_date) set.add(data.week_start_date);
+    return [...set].sort();
   }, [data]);
 
   const weekDates = buildWeekDates(data?.week_start_date);
@@ -323,9 +334,17 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
             <button onClick={() => goWeek(-7)} disabled={!data?.week_start_date}
               title="Previous week"
               style={{ background: '#161b22', border: '1px solid #2a3444', color: '#cdd9e5', borderRadius: 4, padding: '1px 7px', fontSize: 13, cursor: 'pointer' }}>‹</button>
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              Week of <span style={{ color: '#cdd9e5' }}>{data?.week_start_date ? fmtDateLong(data.week_start_date) : '—'}</span>
-            </div>
+            <select
+              value={data?.week_start_date || ''}
+              onChange={(e) => { if (e.target.value) refresh(e.target.value); }}
+              disabled={!data?.week_start_date}
+              title="Jump to a week"
+              style={{ flex: 1, background: '#161b22', border: '1px solid #2a3444', color: '#cdd9e5', borderRadius: 4, padding: '3px 6px', fontSize: 12, textAlign: 'center', cursor: 'pointer' }}>
+              {weekOptions.length === 0 && <option value="">—</option>}
+              {weekOptions.map(w => (
+                <option key={w} value={w}>Week of {fmtWeekRange(w)}</option>
+              ))}
+            </select>
             <button onClick={() => goWeek(7)} disabled={!data?.week_start_date}
               title="Next week"
               style={{ background: '#161b22', border: '1px solid #2a3444', color: '#cdd9e5', borderRadius: 4, padding: '1px 7px', fontSize: 13, cursor: 'pointer' }}>›</button>

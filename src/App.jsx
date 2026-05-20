@@ -46,6 +46,8 @@ export default function App() {
   const mapApiRef = useRef({ flyTo: () => {} }); // populated by MapView via onMapReady
   const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
   const setParcelsVisible = (v) => { identity.setParcelsVisible(v); setParcelsVisibleState(v); };
+  const [ownerNumbersVisible, setOwnerNumbersVisibleState] = useState(identity.getOwnerNumbersVisible());
+  const setOwnerNumbersVisible = (v) => { identity.setOwnerNumbersVisible(v); setOwnerNumbersVisibleState(v); };
 
   // ---- Location sharing & live crew positions ------------------------------
   const sessionIdRef = useRef(identity.getSessionId());
@@ -287,6 +289,8 @@ export default function App() {
         onToggleLayer={toggleLayer}
         parcelsVisible={parcelsVisible}
         onToggleParcels={() => setParcelsVisible(!parcelsVisible)}
+        ownerNumbersVisible={ownerNumbersVisible}
+        onToggleOwnerNumbers={() => setOwnerNumbersVisible(!ownerNumbersVisible)}
         crewLocations={crewLocations}
         rightInset={(planOpen ? 380 : 0) + (opsInfoOwnerId ? 360 : 0)}
         selectedNodeNumber={selectedNodeNumber}

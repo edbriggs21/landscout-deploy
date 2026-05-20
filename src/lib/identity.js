@@ -53,3 +53,11 @@ export function getShareLocation() {
 export function setShareLocation(v) {
   try { localStorage.setItem(SHARE_KEY, v ? '1' : '0'); } catch {}
 }
+
+const OWNER_NUMS_KEY = 'deploy_owner_numbers_visible';
+export function getOwnerNumbersVisible() {
+  try { const v = localStorage.getItem(OWNER_NUMS_KEY); return v === '1'; } catch { return false; }
+}
+export function setOwnerNumbersVisible(v) {
+  try { localStorage.setItem(OWNER_NUMS_KEY, v ? '1' : '0'); } catch {}
+}

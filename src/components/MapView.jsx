@@ -11,6 +11,7 @@ export default function MapView({
   project, owners, accessPoints,
   layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
   parcelsVisible = true, onToggleParcels,
+  ownerNumbersVisible = false, onToggleOwnerNumbers,
   crewLocations = [],
   rightInset = 0,
   selectedNodeNumber = null,
@@ -595,6 +596,17 @@ export default function MapView({
     }
   }, [parcelsVisible, ready]);
 
+  // Toggle the per-parcel schedule-order badges. Default off so they don't
+  // visually compete with the canonical node numbers.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const vis = ownerNumbersVisible ? 'visible' : 'none';
+    for (const id of ['order-labels-circle', 'order-labels-text']) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+    }
+  }, [ownerNumbersVisible, ready]);
+
   // Highlight the selected owner's parcels by updating the filters on the
   // overlay highlight layers. '__none__' is a sentinel that matches nothing
   // when no owner is selected.
@@ -639,6 +651,8 @@ export default function MapView({
         onToggle={onToggleLayer}
         parcelsVisible={parcelsVisible}
         onToggleParcels={onToggleParcels}
+        ownerNumbersVisible={ownerNumbersVisible}
+        onToggleOwnerNumbers={onToggleOwnerNumbers}
       />
       <button
         type="button"

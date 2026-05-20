@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createMap, loadPinImage, maplibregl,
   allParcelsGeoJson, accessPointsGeoJson, fitToFeatures, colorForOwner,
@@ -7,12 +7,27 @@ import {
 import { getBasemap, setBasemapPref } from '../lib/identity.js';
 import LayerPanel from './LayerPanel.jsx';
 
+// Node dot fill color, by state:
+//   retrieved -> green, deployed -> yellow,
+//   owner marked "blocked" -> red, otherwise (undeployed) -> slate gray.
+// blockedIds is the list of owner ids with deployment_readiness === 'blocked'.
+function nodeColorExpr(blockedIds) {
+  return [
+    'case',
+    ['==', ['get', 'node_status'], 'retrieved'], '#10B981',
+    ['==', ['get', 'node_status'], 'deployed'],  '#FACC15',
+    ['in', ['get', 'owner_id'], ['literal', blockedIds || []]], '#EF4444',
+    '#94A3B8',
+  ];
+}
+
 export default function MapView({
   project, owners, accessPoints,
   layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
   parcelsVisible = true, onToggleParcels,
   ownerNumbersVisible = false, onToggleOwnerNumbers,
   crewLocations = [],
+  nextWeekNodeNumbers = [],
   rightInset = 0,
   selectedNodeNumber = null,
   onSelectNode,
@@ -26,6 +41,12 @@ export default function MapView({
   const didFitRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [basemap, setBasemapState] = useState(getBasemap());
+
+  // Owner ids a scout has marked "blocked" - nodes on these parcels show red.
+  const blockedOwnerIds = useMemo(
+    () => (owners || []).filter(o => o.deployment_readiness === 'blocked').map(o => o.id),
+    [owners]
+  );
 
   // Init map once
   useEffect(() => {
@@ -403,8 +424,9 @@ export default function MapView({
             map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
             // Bigger circles so the canonical node number fits inside them.
             // Scale slightly with zoom so they read at multiple altitudes.
-            // circle-color uses a case expression on node_status:
-            //   retrieved -> emerald green, deployed -> yellow, else layer color
+            // circle-color: retrieved -> green, deployed -> yellow,
+            //   blocked parcel -> red, otherwise (undeployed) -> slate gray.
+            // Every node gets a white outline so it reads on any basemap.
             map.addLayer({
               id: layerId, type: 'circle', source: sourceId,
               minzoom, maxzoom,
@@ -415,27 +437,36 @@ export default function MapView({
                   14, Math.max(pointRadius, 11),
                   18, Math.max(pointRadius, 16),
                 ],
-                'circle-color': [
-                  'case',
-                  ['==', ['get', 'node_status'], 'retrieved'], '#10B981',
-                  ['==', ['get', 'node_status'], 'deployed'],  '#FACC15',
-                  color,
-                ],
-                'circle-stroke-color': [
-                  'case',
-                  ['==', ['get', 'node_status'], 'retrieved'], '#FFFFFF',
-                  ['==', ['get', 'node_status'], 'deployed'],  '#FFFFFF',
-                  psColor,
-                ],
-                'circle-stroke-width': [
-                  'case',
-                  ['==', ['get', 'node_status'], 'retrieved'], 2,
-                  ['==', ['get', 'node_status'], 'deployed'],  2,
-                  psWidth,
-                ],
+                'circle-color': nodeColorExpr(blockedOwnerIds),
+                'circle-stroke-color': '#FFFFFF',
+                'circle-stroke-width': 2,
                 'circle-opacity': fillOpacity || 1,
               },
             }, 'access-points-symbol');
+
+            // Blue ring marking nodes on NEXT week's schedule. Drawn just
+            // beneath the node dot (beforeId = layerId) so the dot and its
+            // number stay fully visible on top.
+            const ringId = `${layerId}-ring`;
+            try {
+              map.addLayer({
+                id: ringId, type: 'circle', source: sourceId,
+                minzoom, maxzoom,
+                filter: ['in', ['get', 'node_number'], ['literal', nextWeekNodeNumbers || []]],
+                paint: {
+                  'circle-radius': [
+                    'interpolate', ['linear'], ['zoom'],
+                    10, Math.max(pointRadius, 6) + 5,
+                    14, Math.max(pointRadius, 11) + 6,
+                    18, Math.max(pointRadius, 16) + 7,
+                  ],
+                  'circle-color': '#3B82F6',
+                  'circle-opacity': 0,
+                  'circle-stroke-color': '#3B82F6',
+                  'circle-stroke-width': 3,
+                },
+              }, layerId);
+            } catch (_) {}
             // Text label showing the canonical node_number (when present).
             // minzoom raised slightly so labels don't smear into illegibility
             // at far-out zoom levels.
@@ -508,8 +539,35 @@ export default function MapView({
       setVis(layerId);
       setVis(strokeId);
       setVis(`${layerId}-text`);
+      setVis(`${layerId}-ring`);
     }
   }, [layers, loadedLayers, visibleLayerIds, ready]);
+
+  // Re-apply node fill colors when the set of blocked owners changes - a
+  // scout marking a parcel "blocked" turns its nodes red without a reload.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    for (const meta of layers) {
+      const layerId = `ovl-${meta.id}-render`;
+      if (map.getLayer(layerId)) {
+        try { map.setPaintProperty(layerId, 'circle-color', nodeColorExpr(blockedOwnerIds)); } catch (_) {}
+      }
+    }
+  }, [blockedOwnerIds, layers, loadedLayers, ready]);
+
+  // Update the blue next-week ring filter when the schedule data loads.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const filt = ['in', ['get', 'node_number'], ['literal', nextWeekNodeNumbers || []]];
+    for (const meta of layers) {
+      const ringId = `ovl-${meta.id}-render-ring`;
+      if (map.getLayer(ringId)) {
+        try { map.setFilter(ringId, filt); } catch (_) {}
+      }
+    }
+  }, [nextWeekNodeNumbers, layers, loadedLayers, ready]);
 
   // Sync the crew-locations source with the polled list of active crew.
   useEffect(() => {

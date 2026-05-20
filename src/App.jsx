@@ -22,6 +22,17 @@ function setUrlParams({ code, role }) {
   window.history.replaceState({}, '', url.toString());
 }
 
+// The Monday (YYYY-MM-DD) of the calendar week AFTER the current one.
+function computeNextMonday() {
+  const now = new Date();
+  const dow = now.getDay();                  // 0 Sun .. 6 Sat
+  const toMonday = dow === 0 ? -6 : 1 - dow;  // days back to this week's Monday
+  const m = new Date(now);
+  m.setDate(now.getDate() + toMonday + 7);    // +7 -> next week's Monday
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${m.getFullYear()}-${pad(m.getMonth() + 1)}-${pad(m.getDate())}`;
+}
+
 export default function App() {
   const urlParams = useMemo(() => readUrlParams(), []);
   const [code, setCode] = useState(urlParams.code);
@@ -35,6 +46,7 @@ export default function App() {
   const [selectedOwnerInitialTab, setSelectedOwnerInitialTab] = useState(null);
   const [loadedLayers, setLoadedLayers] = useState({}); // { [layer_id]: geojson }
   const [visibleLayerIds, setVisibleLayerIds] = useState(null); // Set | null (init from data)
+  const [nextWeekNodes, setNextWeekNodes] = useState([]); // node_numbers scheduled next week
 
   // For "tap on map to drop a pin" mode
   const [dropPinMode, setDropPinMode] = useState(false);
@@ -108,6 +120,23 @@ export default function App() {
     tick();
     const id = setInterval(tick, 10000);
     return () => { cancelled = true; clearInterval(id); };
+  }, [code]);
+
+  // Fetch next calendar week's schedule so the map can ring those nodes.
+  useEffect(() => {
+    if (!code) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.listScheduleStops({ code, week_start_date: computeNextMonday() });
+        if (cancelled) return;
+        const nums = [...new Set((res.stops || [])
+          .map(s => s.node_number)
+          .filter(n => n != null))];
+        setNextWeekNodes(nums);
+      } catch (e) { /* ignore - the ring just stays empty */ }
+    })();
+    return () => { cancelled = true; };
   }, [code]);
   // For "tap on map to set schedule start point" mode
   const [pickStartMode, setPickStartMode] = useState(false);
@@ -290,6 +319,7 @@ export default function App() {
         ownerNumbersVisible={ownerNumbersVisible}
         onToggleOwnerNumbers={() => setOwnerNumbersVisible(!ownerNumbersVisible)}
         crewLocations={crewLocations}
+        nextWeekNodeNumbers={nextWeekNodes}
         rightInset={(planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)}
         selectedNodeNumber={selectedNodeNumber}
         onSelectNode={(n, ownerId) => { setSelectedNodeNumber(n); if (ownerId) selectOwner(ownerId, { initialTab: 'ops' }); }}

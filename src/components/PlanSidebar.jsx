@@ -73,6 +73,18 @@ function buildWeekDates(weekStart) {
   return out;
 }
 
+// The Monday (YYYY-MM-DD) of the week containing today — read live from the
+// device clock, so "current week" is always correct with no hard-coded date.
+function currentMondayISO() {
+  const now = new Date();
+  const dow = now.getDay();                  // 0 Sun .. 6 Sat
+  const toMonday = dow === 0 ? -6 : 1 - dow;
+  const m = new Date(now);
+  m.setDate(now.getDate() + toMonday);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${m.getFullYear()}-${pad(m.getMonth() + 1)}-${pad(m.getDate())}`;
+}
+
 function emptyStop(weekStart, dayDate, nextOrder) {
   return {
     id: null,
@@ -125,11 +137,11 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
   };
 
   // On open: jump straight to the selected node's week if a node is selected,
-  // otherwise load the most recent week.
+  // otherwise default to the current calendar week.
   useEffect(() => {
     if (!open) return;
     if (selectedNodeNumber != null) goToNodeWeek(selectedNodeNumber);
-    else refresh();
+    else refresh(currentMondayISO());
     /* eslint-disable-next-line */
   }, [open, code]);
 

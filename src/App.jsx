@@ -9,7 +9,6 @@ import EmptyProject from './components/EmptyProject.jsx';
 import MapView from './components/MapView.jsx';
 import ParcelDetail from './components/ParcelDetail.jsx';
 import PlanSidebar from './components/PlanSidebar.jsx';
-import OpsInfoSidebar from './components/OpsInfoSidebar.jsx';
 
 function readUrlParams() {
   const p = new URLSearchParams(window.location.search);
@@ -41,7 +40,6 @@ export default function App() {
   const [dropPinMode, setDropPinMode] = useState(false);
   // Toggle for the parcel fill/outline layers (persisted)
   const [planOpen, setPlanOpen] = useState(true);
-  const [opsInfoOwnerId, setOpsInfoOwnerId] = useState(null);
   const [selectedNodeNumber, setSelectedNodeNumber] = useState(null);
   const mapApiRef = useRef({ flyTo: () => {} }); // populated by MapView via onMapReady
   const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
@@ -292,7 +290,7 @@ export default function App() {
         ownerNumbersVisible={ownerNumbersVisible}
         onToggleOwnerNumbers={() => setOwnerNumbersVisible(!ownerNumbersVisible)}
         crewLocations={crewLocations}
-        rightInset={(planOpen ? 380 : 0) + (opsInfoOwnerId ? 360 : 0)}
+        rightInset={(planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)}
         selectedNodeNumber={selectedNodeNumber}
         onSelectNode={(n) => setSelectedNodeNumber(n)}
         onMapReady={(api) => { mapApiRef.current = api; }}
@@ -377,7 +375,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Parcel detail sheet */}
+      {/* Owner sidebar (replaces former bottom sheet + OpsInfoSidebar). */}
       {selectedOwner && (
         <ParcelDetail
           owner={selectedOwner}
@@ -394,6 +392,7 @@ export default function App() {
           onSelectOwner={(id, opts) => selectOwner(id, opts)}
           initialTab={selectedOwnerInitialTab}
           onRequestPickStart={() => { setSelectedOwnerId(null); setPickStartMode(true); }}
+          offsetRightPx={planOpen ? 380 : 0}
         />
       )}
 
@@ -405,21 +404,9 @@ export default function App() {
         selectedNodeNumber={selectedNodeNumber}
         onSelectNode={(n) => setSelectedNodeNumber(n)}
         onFlyTo={(lat, lng) => mapApiRef.current.flyTo(lat, lng)}
-        onOpenOpsInfo={(ownerId) => setOpsInfoOwnerId(ownerId)}
+        onOpenOpsInfo={(ownerId) => selectOwner(ownerId, { initialTab: 'ops' })}
       />
-      <OpsInfoSidebar
-        open={!!opsInfoOwnerId}
-        onClose={() => setOpsInfoOwnerId(null)}
-        offsetRightPx={planOpen ? 380 : 0}
-        owner={(data.owners || []).find(o => o.id === opsInfoOwnerId) || null}
-        project={data.project}
-        code={code}
-        name={name}
-        role={role}
-        onChanged={refreshAfterWrite}
-      />
-
-      {/* Drop-pin hint banner */}
+{/* Drop-pin hint banner */}
       {(dropPinMode || pickStartMode) && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 bg-landGreen text-deepBlue text-sm font-medium px-4 py-2 rounded-full shadow-lg">
           {pickStartMode ? 'Tap the map to set the route start point' : 'Tap the map to drop a pin'}

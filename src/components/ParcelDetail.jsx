@@ -14,6 +14,7 @@ export default function ParcelDetail({
   onSelectOwner,
   onRequestPickStart,
   initialTab,
+  offsetRightPx = 0,
 }) {
   const [tab, setTab] = useState(initialTab || (role === 'crew' ? 'status' : 'readiness'));
 
@@ -40,37 +41,55 @@ export default function ParcelDetail({
   const tabs = role === 'crew' ? crewTabs : scoutTabs;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 sheet-in">
-      <div className="bg-brandSurface border-t border-brandBorder rounded-t-2xl shadow-2xl max-h-[80vh] flex flex-col safe-bottom">
-        {/* Header */}
-        <div className="px-4 pt-3 pb-2 flex items-center justify-between flex-shrink-0">
-          <div className="min-w-0">
-            <div className="text-white font-semibold truncate">{owner.owner_name || owner.name || 'Unnamed parcel'}</div>
-            <div className="text-xs text-slate-400 truncate">
-              {owner.geocoded_address || owner.stage_label || '—'}
-            </div>
+    <div
+      className="fixed top-0 bottom-0 z-30 flex flex-col"
+      style={{
+        right: offsetRightPx + 'px',
+        width: '380px',
+        background: '#0d1117',
+        color: '#cdd9e5',
+        borderLeft: '1px solid #2a3444',
+        fontFamily: '-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif',
+      }}
+    >
+      <div className="flex flex-col h-full">
+        {/* Header (matches Plan sidebar style) */}
+        <div className="flex-shrink-0" style={{ padding: '14px 16px', borderBottom: '1px solid #2a3444', background: '#0d1117' }}>
+          <div className="flex items-center justify-between mb-1">
+            <div style={{ fontSize: 11, letterSpacing: '0.1em', color: '#8b96a3', textTransform: 'uppercase' }}>Owner</div>
+            <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #2a3444', color: '#cdd9e5', padding: '3px 9px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>✕</button>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white px-2 py-1 text-sm">Close ✕</button>
+          <div style={{ fontSize: 17, fontWeight: 600, color: '#f0f6fc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {owner.owner_name || owner.name || 'Unnamed parcel'}
+          </div>
+          <div style={{ fontSize: 11, color: '#8b96a3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {owner.geocoded_address || owner.stage_label || '—'}
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="px-2 border-b border-brandBorder flex overflow-x-auto no-scrollbar flex-shrink-0">
+        <div className="flex-shrink-0 flex overflow-x-auto no-scrollbar" style={{ padding: '0 8px', borderBottom: '1px solid #2a3444', background: '#0d1117' }}>
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={
-                'px-3 py-2 text-sm whitespace-nowrap border-b-2 ' +
-                (tab === t.id
-                  ? 'border-landGreen text-white'
-                  : 'border-transparent text-slate-400')
-              }
+              style={{
+                background: 'transparent',
+                padding: '8px 10px',
+                fontSize: 12,
+                whiteSpace: 'nowrap',
+                color: tab === t.id ? '#f0f6fc' : '#8b96a3',
+                borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+                borderBottom: tab === t.id ? '2px solid #9ACD32' : '2px solid transparent',
+                cursor: 'pointer',
+                fontWeight: tab === t.id ? 600 : 400,
+              }}
             >{t.label}</button>
           ))}
         </div>
 
         {/* Body */}
-        <div className="p-4 overflow-y-auto flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto" style={{ padding: 14, background: '#0d1117' }}>
           {tab === 'ops' && <OpsInfoView owner={owner} project={project} code={code} name={name} role={role} onChanged={onChanged} />}
 
           {role === 'scout' && tab === 'readiness' && (

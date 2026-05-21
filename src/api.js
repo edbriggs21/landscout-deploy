@@ -153,3 +153,9 @@ export async function copyWeek({ code, from_week_start, to_week_start }) {
 export async function listAllNodes({ code }) {
   return postJson('deployment-list-all-nodes', { code });
 }
+
+// Bulk re-date many schedule stops at once (Insert/Remove day, drag-a-day).
+// updates: [{ id, day_date }]. The server recomputes each week_start_date.
+export async function shiftScheduleStops({ code, updates }) {
+  return postJson('deployment-plan-shift-days-public', { code, updates });
+}

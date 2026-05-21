@@ -15,6 +15,11 @@ const C = {
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const COL_W = 264;
+const menuItem = {
+  display: 'block', width: '100%', textAlign: 'left', background: 'transparent',
+  border: 'none', borderBottom: '1px solid ' + C.border, color: C.text,
+  padding: '7px 10px', fontSize: 11, cursor: 'pointer',
+};
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function shiftDays(iso, days) {
@@ -35,6 +40,14 @@ function currentMondayISO() {
   const m = new Date(now);
   m.setDate(now.getDate() + toMon);
   return `${m.getFullYear()}-${pad2(m.getMonth() + 1)}-${pad2(m.getDate())}`;
+}
+// The Monday (YYYY-MM-DD) of the week containing any ISO date.
+function mondayOf(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay();
+  dt.setUTCDate(dt.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  return dt.toISOString().slice(0, 10);
 }
 function todayISO() {
   const n = new Date();
@@ -150,6 +163,7 @@ export default function ScheduleBoard({ code, role, onClose }) {
   const [drawerWeek, setDrawerWeek] = useState('');
   const [drawerDay, setDrawerDay] = useState(0);
   const [drawerAction, setDrawerAction] = useState('deploy');
+  const [dayMenu, setDayMenu] = useState(null);
 
   const [drag, setDragState] = useState(null);
   const [dropT, setDropTState] = useState(null);
@@ -293,6 +307,7 @@ export default function ScheduleBoard({ code, role, onClose }) {
     endDrag();
     if (d.type === 'stop') doMove(d.id, week, day, index);
     else if (d.type === 'node') addNodes([d.node], week, day, drawerAction);
+    else if (d.type === 'day') moveDay(d.date, day);
   };
 
   // ---- mutations (all writes routed through enqueue) ----------------------
@@ -424,6 +439,70 @@ export default function ScheduleBoard({ code, role, onClose }) {
       setEditing(null);
       await loadAll();
     });
+  }
+
+  // ---- day-level operations (insert / remove / move a whole day) ----------
+  // Bulk re-date many stops at once, then persist via the shift endpoint.
+  function applyShift(updates) {
+    if (!updates.length) return;
+    const byId = new Map(updates.map((u) => [u.id, u.day_date]));
+    setAllStops((prev) => prev.map((s) => (byId.has(s.id)
+      ? { ...s, day_date: byId.get(s.id), week_start_date: mondayOf(byId.get(s.id)) }
+      : s)));
+    setError('');
+    enqueue(async () => {
+      setBusy(true);
+      try {
+        await api.shiftScheduleStops({ code, updates });
+        await loadAll();
+      } catch (e) {
+        setError((e && e.message) || 'Could not shift the schedule');
+        await loadAll();
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+
+  // Insert a blank day. 'before' pushes this day and everything later back by
+  // one; 'after' pushes everything strictly later. Ripples to the schedule end.
+  function insertDay(date, where) {
+    const updates = [];
+    for (const s of allStops) {
+      const hit = where === 'before' ? s.day_date >= date : s.day_date > date;
+      if (hit) updates.push({ id: s.id, day_date: shiftDays(s.day_date, 1) });
+    }
+    if (!updates.length) { setError('Nothing after this day to push back.'); return; }
+    applyShift(updates);
+  }
+
+  // Remove an empty day: pull every later stop up by one day.
+  function removeDay(date) {
+    if (allStops.some((s) => s.day_date === date)) {
+      setError('That day still has stops - move or delete them first.');
+      return;
+    }
+    const updates = [];
+    for (const s of allStops) {
+      if (s.day_date > date) updates.push({ id: s.id, day_date: shiftDays(s.day_date, -1) });
+    }
+    if (!updates.length) { setError('Nothing after this day to pull up.'); return; }
+    applyShift(updates);
+  }
+
+  // Move a whole day to another date: the dragged day takes the target date,
+  // and the days in between slide over to make room.
+  function moveDay(fromDate, toDate) {
+    if (!fromDate || !toDate || fromDate === toDate) return;
+    const updates = [];
+    for (const s of allStops) {
+      let nd = s.day_date;
+      if (s.day_date === fromDate) nd = toDate;
+      else if (fromDate < toDate && s.day_date > fromDate && s.day_date <= toDate) nd = shiftDays(s.day_date, -1);
+      else if (fromDate > toDate && s.day_date >= toDate && s.day_date < fromDate) nd = shiftDays(s.day_date, 1);
+      if (nd !== s.day_date) updates.push({ id: s.id, day_date: nd });
+    }
+    applyShift(updates);
   }
 
   // ---- selection helpers --------------------------------------------------
@@ -612,6 +691,7 @@ export default function ScheduleBoard({ code, role, onClose }) {
                     const stops = stopsByKey.get(week + '|' + day) || [];
                     const isToday = day === todayISO();
                     const dropHere = dropT && dropT.week === week && dropT.day === day;
+                    const dayLines = dropHere && drag && drag.type !== 'day';
                     const dayAllSel = selectMode && stops.length > 0 && stops.every((s) => selected.has(s.id));
                     return (
                       <div
@@ -625,7 +705,16 @@ export default function ScheduleBoard({ code, role, onClose }) {
                         }}
                       >
                         {/* Day header */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 2px 4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 2px 4px' }}>
+                          {canEdit && !selectMode && (
+                            <span
+                              draggable
+                              onDragStart={(e) => { startDrag({ type: 'day', date: day }); try { e.dataTransfer.effectAllowed = 'move'; } catch (_) {} }}
+                              onDragEnd={endDrag}
+                              title="Drag to move this whole day"
+                              style={{ cursor: 'grab', color: C.dim, fontSize: 11, lineHeight: 1 }}
+                            >⠇</span>
+                          )}
                           <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? C.sel : C.text }}>
                             {DAY_NAMES[di]}
                           </span>
@@ -644,6 +733,29 @@ export default function ScheduleBoard({ code, role, onClose }) {
                               style={{ ...btn, padding: '0 6px', fontSize: 11, lineHeight: '16px' }}
                             >+</button>
                           )}
+                          {canEdit && !selectMode && (
+                            <div style={{ position: 'relative' }}>
+                              <button
+                                onClick={() => setDayMenu((m) => (m === week + '|' + day ? null : week + '|' + day))}
+                                title="Day options"
+                                style={{ ...btn, padding: '0 5px', fontSize: 13, lineHeight: '16px' }}
+                              >⋮</button>
+                              {dayMenu === week + '|' + day && (
+                                <>
+                                  <div onClick={() => setDayMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 70 }} />
+                                  <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 71, marginTop: 2, background: C.surface2, border: '1px solid ' + C.border, borderRadius: 6, width: 184, boxShadow: '0 8px 20px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
+                                    <button onClick={() => { setDayMenu(null); insertDay(day, 'before'); }} style={menuItem}>+ Insert blank day above</button>
+                                    <button onClick={() => { setDayMenu(null); insertDay(day, 'after'); }} style={menuItem}>+ Insert blank day below</button>
+                                    <button
+                                      onClick={() => { setDayMenu(null); removeDay(day); }}
+                                      disabled={stops.length > 0}
+                                      style={{ ...menuItem, borderBottom: 'none', color: stops.length > 0 ? C.dim : '#ff8a80', cursor: stops.length > 0 ? 'not-allowed' : 'pointer' }}
+                                    >{stops.length > 0 ? 'Remove day (move stops first)' : '- Remove this blank day'}</button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Cards + insertion line */}
@@ -654,7 +766,7 @@ export default function ScheduleBoard({ code, role, onClose }) {
                         )}
                         {stops.map((s, i) => (
                           <React.Fragment key={s.id}>
-                            {dropHere && dropT.index === i && (
+                            {dayLines && dropT.index === i && (
                               <div style={{ height: 2, background: C.accent, borderRadius: 2, margin: '1px 0' }} />
                             )}
                             <StopCard
@@ -678,7 +790,7 @@ export default function ScheduleBoard({ code, role, onClose }) {
                             />
                           </React.Fragment>
                         ))}
-                        {dropHere && dropT.index >= stops.length && (
+                        {dayLines && dropT.index >= stops.length && (
                           <div style={{ height: 2, background: C.accent, borderRadius: 2, margin: '1px 0' }} />
                         )}
                       </div>

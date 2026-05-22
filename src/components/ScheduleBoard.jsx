@@ -92,12 +92,12 @@ function computeMove(stops, stopId, toWeek, toDay, toIndex) {
 }
 
 // ---- compact stop card ----------------------------------------------------
-function StopCard({ stop, canEdit, selectMode, selected, dragging, onClick, onDragStart, onDragEnd, onDragOver }) {
+function StopCard({ stop, crew, canEdit, canDrag, selectMode, selected, dragging, onClick, onDragStart, onDragEnd, onDragOver }) {
   const accent = stop.action === 'retrieve' ? C.retrieve : C.deploy;
   const done = !!stop.done_at;
   return (
     <div
-      draggable={canEdit && !selectMode}
+      draggable={canDrag}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
@@ -130,6 +130,13 @@ function StopCard({ stop, canEdit, selectMode, selected, dragging, onClick, onDr
         overflow: 'hidden', textOverflow: 'ellipsis',
         textDecoration: done ? 'line-through' : 'none',
       }}>{stop.owner_name || '—'}</span>
+      {crew && (
+        <span style={{
+          fontSize: 8, fontWeight: 700, color: '#0d1117', background: crew.color,
+          padding: '1px 4px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0,
+          maxWidth: 66, overflow: 'hidden', textOverflow: 'ellipsis',
+        }} title={'Crew: ' + crew.name}>{crew.name}</span>
+      )}
       {stop.scheduled_time && (
         <span style={{ fontSize: 9, color: C.muted, fontFamily: 'ui-monospace, monospace' }}>
           {stop.scheduled_time.slice(0, 5)}
@@ -164,6 +171,10 @@ export default function ScheduleBoard({ code, role, onClose }) {
   const [drawerDay, setDrawerDay] = useState(0);
   const [drawerAction, setDrawerAction] = useState('deploy');
   const [dayMenu, setDayMenu] = useState(null);
+  const [crews, setCrews] = useState([]);
+  const [crewFilter, setCrewFilter] = useState('');
+  const [crewPanel, setCrewPanel] = useState(false);
+  const [bulkCrew, setBulkCrew] = useState('');
 
   const [drag, setDragState] = useState(null);
   const [dropT, setDropTState] = useState(null);
@@ -215,7 +226,14 @@ export default function ScheduleBoard({ code, role, onClose }) {
     } catch (e) { /* drawer just stays empty */ }
   }, [code]);
 
-  useEffect(() => { loadAll(); loadNodes(); }, [loadAll, loadNodes]);
+  const loadCrews = useCallback(async () => {
+    try {
+      const r = await api.listCrews({ code });
+      setCrews(r.crews || []);
+    } catch (e) { /* no crews yet */ }
+  }, [code]);
+
+  useEffect(() => { loadAll(); loadNodes(); loadCrews(); }, [loadAll, loadNodes, loadCrews]);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !editing) onClose(); };
@@ -232,9 +250,22 @@ export default function ScheduleBoard({ code, role, onClose }) {
     return [...set].sort();
   }, [serverWeeks, extraWeeks, allStops]);
 
+  const crewByName = useMemo(() => {
+    const m = new Map();
+    for (const c of crews) m.set(c.name, c);
+    return m;
+  }, [crews]);
+
+  // The board can be filtered to one crew (or the unassigned stops).
+  const filteredStops = useMemo(() => {
+    if (!crewFilter) return allStops;
+    if (crewFilter === '__none__') return allStops.filter((s) => !s.crew_label);
+    return allStops.filter((s) => s.crew_label === crewFilter);
+  }, [allStops, crewFilter]);
+
   const stopsByKey = useMemo(() => {
     const m = new Map();
-    for (const s of allStops) {
+    for (const s of filteredStops) {
       const k = s.week_start_date + '|' + s.day_date;
       const a = m.get(k) || [];
       a.push(s);
@@ -242,7 +273,7 @@ export default function ScheduleBoard({ code, role, onClose }) {
     }
     for (const a of m.values()) a.sort((x, y) => (x.stop_order || 0) - (y.stop_order || 0));
     return m;
-  }, [allStops]);
+  }, [filteredStops]);
 
   const scheduledNums = useMemo(() => new Set(allStops.map((s) => s.node_number)), [allStops]);
   const unscheduledNodes = useMemo(
@@ -251,10 +282,10 @@ export default function ScheduleBoard({ code, role, onClose }) {
   );
 
   const summary = useMemo(() => ({
-    stops: allStops.length,
+    stops: filteredStops.length,
     weeks: weeks.length,
-    days: new Set(allStops.map((s) => s.week_start_date + '|' + s.day_date)).size,
-  }), [allStops, weeks]);
+    days: new Set(filteredStops.map((s) => s.week_start_date + '|' + s.day_date)).size,
+  }), [filteredStops, weeks]);
 
   // Default the week selectors once weeks are known.
   useEffect(() => {
@@ -441,6 +472,52 @@ export default function ScheduleBoard({ code, role, onClose }) {
     });
   }
 
+  // ---- crew management ----------------------------------------------------
+  const CREW_PALETTE = ['#38BDF8', '#F59E0B', '#34D399', '#F472B6', '#A78BFA'];
+  async function addCrew() {
+    try {
+      await api.createCrew({
+        code,
+        name: 'Crew ' + (crews.length + 1),
+        color: CREW_PALETTE[crews.length % CREW_PALETTE.length],
+      });
+      await loadCrews();
+    } catch (e) { setError((e && e.message) || 'Could not add the crew'); }
+  }
+  async function saveCrew(id, patch) {
+    try {
+      await api.updateCrew({ code, id, ...patch });
+      await loadCrews();
+      if (patch.name != null) await loadAll();
+    } catch (e) { setError((e && e.message) || 'Could not update the crew'); }
+  }
+  async function removeCrew(id) {
+    if (!window.confirm('Delete this crew? Any stops assigned to it become unassigned.')) return;
+    try {
+      await api.deleteCrew({ code, id });
+      await loadCrews();
+      await loadAll();
+    } catch (e) { setError((e && e.message) || 'Could not delete the crew'); }
+  }
+  function assignCrew(crewName) {
+    const ids = [...selected];
+    if (!ids.length) return;
+    enqueue(async () => {
+      setBusy(true); setError('');
+      try {
+        await api.reorderScheduleStops({
+          code,
+          updates: ids.map((id) => ({ id, crew_label: crewName || null })),
+        });
+        setSelected(new Set());
+        await loadAll();
+      } catch (e) {
+        setError((e && e.message) || 'Could not assign the crew');
+        await loadAll();
+      } finally { setBusy(false); }
+    });
+  }
+
   // ---- day-level operations (insert / remove / move a whole day) ----------
   // Bulk re-date many stops at once, then persist via the shift endpoint.
   function applyShift(updates) {
@@ -522,7 +599,7 @@ export default function ScheduleBoard({ code, role, onClose }) {
     });
   };
   const selectWeek = (week) => {
-    const ids = allStops.filter((s) => s.week_start_date === week).map((s) => s.id);
+    const ids = filteredStops.filter((s) => s.week_start_date === week).map((s) => s.id);
     if (!ids.length) return;
     setSelected((p) => {
       const n = new Set(p);
@@ -601,6 +678,19 @@ export default function ScheduleBoard({ code, role, onClose }) {
         {canEdit && (
           <button style={hdrBtn(drawerOpen)} onClick={() => setDrawerOpen((o) => !o)}>+ Add nodes</button>
         )}
+        <select
+          value={crewFilter}
+          onChange={(e) => setCrewFilter(e.target.value)}
+          title="Show one crew's schedule"
+          style={{ ...inp, width: 'auto' }}
+        >
+          <option value="">All crews</option>
+          {crews.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          <option value="__none__">Unassigned</option>
+        </select>
+        {canEdit && (
+          <button style={hdrBtn(crewPanel)} onClick={() => setCrewPanel((o) => !o)}>Crews</button>
+        )}
         {canEdit && (
           <button style={hdrBtn(selectMode)} onClick={() => { setSelectMode((s) => !s); setSelected(new Set()); }}>
             {selectMode ? 'Exit select' : 'Select'}
@@ -633,6 +723,16 @@ export default function ScheduleBoard({ code, role, onClose }) {
             onClick={doBulkMove}
             style={{ ...btn, background: C.accent, color: C.bg, borderColor: C.accent, fontWeight: 700, opacity: selected.size ? 1 : 0.5 }}
           >Move {selected.size || ''}</button>
+          <span style={{ fontSize: 11, color: C.muted }}>Crew</span>
+          <select value={bulkCrew} onChange={(e) => setBulkCrew(e.target.value)} style={{ ...inp, width: 'auto' }}>
+            <option value="">— none —</option>
+            {crews.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+          <button
+            disabled={!selected.size || busy}
+            onClick={() => assignCrew(bulkCrew)}
+            style={{ ...btn, background: C.accent, color: C.bg, borderColor: C.accent, fontWeight: 700, opacity: selected.size ? 1 : 0.5 }}
+          >Assign</button>
           <button
             disabled={!selected.size || busy}
             onClick={doBulkDelete}
@@ -771,7 +871,9 @@ export default function ScheduleBoard({ code, role, onClose }) {
                             )}
                             <StopCard
                               stop={s}
+                              crew={s.crew_label ? crewByName.get(s.crew_label) : null}
                               canEdit={canEdit}
+                              canDrag={canEdit && !selectMode && !crewFilter}
                               selectMode={selectMode}
                               selected={selected.has(s.id)}
                               dragging={drag && drag.type === 'stop' && drag.id === s.id}
@@ -902,6 +1004,54 @@ export default function ScheduleBoard({ code, role, onClose }) {
           </div>
         )}
       </div>
+
+      {crewPanel && (
+        <div
+          onClick={() => setCrewPanel(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 65, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ marginTop: 80, width: 366, background: C.bg, border: '1px solid ' + C.border, borderRadius: 10, boxShadow: '0 16px 40px rgba(0,0,0,0.6)', overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', borderBottom: '1px solid ' + C.border }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: C.bright }}>Crews</span>
+              <button onClick={() => setCrewPanel(false)} style={{ ...btn, padding: '2px 8px' }}>{'✕'}</button>
+            </div>
+            <div style={{ padding: 12 }}>
+              {crews.length === 0 && (
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+                  No crews yet. Add one to start splitting the schedule.
+                </div>
+              )}
+              {crews.map((c) => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <input
+                    type="color" value={c.color}
+                    onChange={(e) => saveCrew(c.id, { color: e.target.value })}
+                    title="Crew color"
+                    style={{ width: 32, height: 30, padding: 0, border: '1px solid ' + C.border, borderRadius: 5, background: C.surface, cursor: 'pointer' }}
+                  />
+                  <input
+                    type="text" defaultValue={c.name}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) saveCrew(c.id, { name: v }); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                    style={{ ...inp, flex: 1 }}
+                  />
+                  <button onClick={() => removeCrew(c.id)} style={{ ...btn, color: '#ff8a80', borderColor: '#3a1a1a', padding: '5px 9px' }}>Delete</button>
+                </div>
+              ))}
+              <button
+                onClick={addCrew}
+                style={{ ...btn, marginTop: 4, background: C.accent, color: C.bg, borderColor: C.accent, fontWeight: 700 }}
+              >+ Add crew</button>
+              <div style={{ fontSize: 10, color: C.dim, marginTop: 12, lineHeight: 1.5 }}>
+                To assign work: turn on Select, tick stops (or use “all” on a day/week), then pick a crew in the bar and hit Assign. Use the crew dropdown up top to view one crew at a time.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <StopEditor

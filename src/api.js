@@ -169,3 +169,17 @@ export async function reorderLayers({ code, layer_ids }) {
 export async function setNodeNumber({ code, line, sort, node_number }) {
   return postJson('deployment-set-node-number-public', { code, line, sort, node_number });
 }
+
+// Field crews (parallel scheduling).
+export async function listCrews({ code }) {
+  return postJson('deployment-crews-public', { code, op: 'list' });
+}
+export async function createCrew({ code, name, color }) {
+  return postJson('deployment-crews-public', { code, op: 'create', name, color });
+}
+export async function updateCrew({ code, id, name, color }) {
+  return postJson('deployment-crews-public', { code, op: 'update', id, name, color });
+}
+export async function deleteCrew({ code, id }) {
+  return postJson('deployment-crews-public', { code, op: 'delete', id });
+}

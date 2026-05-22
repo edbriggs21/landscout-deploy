@@ -10,6 +10,7 @@ import MapView from './components/MapView.jsx';
 import ParcelDetail from './components/ParcelDetail.jsx';
 import PlanSidebar from './components/PlanSidebar.jsx';
 import ScheduleBoard from './components/ScheduleBoard.jsx';
+import Header from './components/Header.jsx';
 
 function readUrlParams() {
   const p = new URLSearchParams(window.location.search);
@@ -56,6 +57,7 @@ export default function App() {
   // Toggle for the parcel fill/outline layers (persisted)
   const [planOpen, setPlanOpen] = useState(true);
   const [boardOpen, setBoardOpen] = useState(false);
+  const [basemap, setBasemapState] = useState(identity.getBasemap());
   const [selectedNodeNumber, setSelectedNodeNumber] = useState(null);
   const mapApiRef = useRef({ flyTo: () => {} }); // populated by MapView via onMapReady
   const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
@@ -334,12 +336,14 @@ export default function App() {
 
   return (
     <div className="h-full w-full relative">
+      <div style={{ position: 'absolute', inset: 0, top: 56 }}>
       <MapView
         project={data.project}
         owners={data.owners}
         accessPoints={data.access_points}
         layers={data.layers || []}
         loadedLayers={loadedLayers}
+        basemap={basemap}
         visibleLayerIds={visibleLayerIds || new Set()}
         onToggleLayer={toggleLayer}
         onReorderLayers={canEdit ? handleReorderLayers : undefined}
@@ -386,46 +390,34 @@ export default function App() {
           }
         }}
       />
-
-      {/* Top status bar */}
-      <div className="absolute top-0 left-0 p-3 safe-top flex items-center justify-between gap-2 bg-gradient-to-b from-black/50 to-transparent pointer-events-none" style={{ right: ((planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)) + 'px', transition: 'right 200ms ease' }}>
-        <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs">
-          <span className="text-slate-400">Project:</span> <span className="text-white font-medium">{data.project?.name}</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShareLocation(!shareLocation)}
-          title={shareLocation ? (myLocationError ? ('Location sharing on — ' + myLocationError) : 'Location sharing on — tap to stop') : 'Share my location with the team'}
-          className={`pointer-events-auto rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 ${shareLocation ? 'bg-landGreen/90 text-deepBlue font-semibold' : 'bg-brandSurface/80 text-slate-300'}`}
-        >
-          {shareLocation
-            ? <><span className="inline-block w-2 h-2 rounded-full bg-deepBlue animate-pulse"></span><span>Sharing</span></>
-            : <><span>📡</span><span>Share location</span></>}
-        </button>
-        {data.node_stats && (
-          <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs flex items-center gap-3 whitespace-nowrap">
-            <span className="text-slate-400 uppercase tracking-wider">Nodes</span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2 h-2 rounded-full bg-slate-400"></span>
-              <span className="text-white font-medium">{data.node_stats.total}</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2 h-2 rounded-full bg-yellow-400"></span>
-              <span className="text-yellow-300 font-medium">{data.node_stats.deployed}</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span className="text-emerald-400 font-medium">{data.node_stats.retrieved}</span>
-            </span>
-          </div>
-        )}
-        <div className="pointer-events-auto bg-brandSurface/80 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2">
-          <span className={`inline-block w-2 h-2 rounded-full ${role === 'crew' ? 'bg-landGreen' : 'bg-dataBlue'}`}></span>
-          <span className="text-white capitalize">{role}</span>
-          <span className="text-slate-400">·</span>
-          <span className="text-slate-300">{name}</span>
-        </div>
       </div>
+
+      <Header
+        project={data.project}
+        nodeStats={data.node_stats}
+        role={role}
+        name={name}
+        shareLocation={shareLocation}
+        onToggleShareLocation={() => setShareLocation(!shareLocation)}
+        locationError={myLocationError}
+        basemap={basemap}
+        onCycleBasemap={() => {
+          const next = basemap === 'satellite' ? 'streets' : 'satellite';
+          identity.setBasemapPref(next);
+          setBasemapState(next);
+        }}
+        rightInset={(planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)}
+        layerProps={{
+          layers: data.layers || [],
+          visibleLayerIds: visibleLayerIds || new Set(),
+          onToggle: toggleLayer,
+          onReorder: canEdit ? handleReorderLayers : undefined,
+          parcelsVisible,
+          onToggleParcels: () => setParcelsVisible(!parcelsVisible),
+          ownerNumbersVisible,
+          onToggleOwnerNumbers: () => setOwnerNumbersVisible(!ownerNumbersVisible),
+        }}
+      />
 
       {/* Owner sidebar (replaces former bottom sheet + OpsInfoSidebar). */}
       {selectedOwner && (

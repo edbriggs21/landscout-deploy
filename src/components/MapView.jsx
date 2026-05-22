@@ -4,8 +4,6 @@ import {
   allParcelsGeoJson, accessPointsGeoJson, fitToFeatures, colorForOwner,
   setBasemap, parcelCentroid,
 } from '../lib/maplibre-setup.js';
-import { getBasemap, setBasemapPref } from '../lib/identity.js';
-import LayerPanel from './LayerPanel.jsx';
 
 // Node dot fill color, by state:
 //   retrieved -> green, deployed -> yellow,
@@ -52,6 +50,7 @@ export default function MapView({
   ownerNumbersVisible = false, onToggleOwnerNumbers,
   onReorderLayers,
   crewLocations = [],
+  basemap = 'satellite',
   nextWeekNodeNumbers = [],
   currentWeekNodeNumbers = [],
   rightInset = 0,
@@ -66,7 +65,6 @@ export default function MapView({
   const mapRef = useRef(null);
   const didFitRef = useRef(false);
   const [ready, setReady] = useState(false);
-  const [basemap, setBasemapState] = useState(getBasemap());
 
   // Owner ids a scout has marked "blocked" - nodes on these parcels show red.
   const blockedOwnerIds = useMemo(
@@ -720,35 +718,16 @@ export default function MapView({
     };
   }, [dropPinMode, onMapTap, ready]);
 
-  const cycleBasemap = () => {
-    const next = basemap === 'satellite' ? 'streets' : 'satellite';
-    setBasemapState(next);
-    setBasemapPref(next);
-    if (mapRef.current) setBasemap(mapRef.current, next);
-  };
+  // Apply basemap changes coming from the header toggle.
+  useEffect(() => {
+    if (mapRef.current && ready) {
+      try { setBasemap(mapRef.current, basemap); } catch (_) {}
+    }
+  }, [basemap, ready]);
 
   return (
     <div className="relative w-full h-full" style={{ paddingRight: rightInset + 'px', transition: 'padding-right 200ms ease' }}>
       <div ref={containerRef} className="w-full h-full" />
-      <LayerPanel
-        layers={layers}
-        visibleLayerIds={visibleLayerIds || new Set()}
-        onToggle={onToggleLayer}
-        parcelsVisible={parcelsVisible}
-        onToggleParcels={onToggleParcels}
-        ownerNumbersVisible={ownerNumbersVisible}
-        onToggleOwnerNumbers={onToggleOwnerNumbers}
-        onReorder={onReorderLayers}
-      />
-      <button
-        type="button"
-        onClick={cycleBasemap}
-        title={basemap === 'satellite' ? 'Switch to streets' : 'Switch to satellite'}
-        className="absolute left-3 bottom-24 z-10 bg-brandSurface/95 border border-brandBorder rounded-lg px-3 py-2 text-sm text-white shadow-lg flex items-center gap-2 hover:border-landGreen safe-bottom"
-        style={{ backdropFilter: 'blur(6px)' }}
-      >
-        {basemap === 'satellite' ? '🗺️ Streets' : '🛰️ Satellite'}
-      </button>
     </div>
   );
 }

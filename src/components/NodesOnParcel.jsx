@@ -6,6 +6,11 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
   const [err, setErr] = useState('');
   const [nodes, setNodes] = useState(null);
   const [busyKey, setBusyKey] = useState(null);
+  // node-number editor state: which node row is being edited, and the
+  // working draft value (string so we can show an empty field while typing).
+  const [editingKey, setEditingKey] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingNum, setSavingNum] = useState(false);
 
   const fetchNodes = useCallback(async () => {
     setErr('');
@@ -56,6 +61,46 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
     }
   };
 
+  const startEditNumber = (node) => {
+    const key = `${node.layer_id}::${node.label}`;
+    setEditingKey(key);
+    setEditValue(node.node_number != null ? String(node.node_number) : '');
+    setErr('');
+  };
+
+  const cancelEditNumber = () => {
+    setEditingKey(null);
+    setEditValue('');
+  };
+
+  const saveNumber = async (node) => {
+    const trimmed = editValue.trim();
+    if (trimmed !== '') {
+      const n = Number(trimmed);
+      if (!Number.isInteger(n) || n < 0) {
+        setErr('Node # must be a non-negative whole number.');
+        return;
+      }
+    }
+    setSavingNum(true); setErr('');
+    try {
+      await api.updateNodeNumber({
+        code,
+        layer_id: node.layer_id,
+        feature_key: node.label,
+        node_number: trimmed === '' ? null : Number(trimmed),
+        updated_by: name,
+      });
+      cancelEditNumber();
+      await fetchNodes();
+      if (onChanged) await onChanged();
+    } catch (e) {
+      setErr(e.message || 'Failed to update node number');
+    } finally {
+      setSavingNum(false);
+    }
+  };
+
   if (loading && !nodes) {
     return <div className="text-xs text-slate-500">Computing nodes on this parcel…</div>;
   }
@@ -78,6 +123,7 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
   }, {});
 
   const canEdit = role === 'scout' || role === 'crew';
+  const canEditNumber = role === 'scout';
 
   return (
     <div className="space-y-3">
@@ -119,7 +165,47 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
               return (
                 <li key={i} className="bg-brandBg border border-brandBorder/40 rounded p-2 flex flex-col gap-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-white font-mono font-semibold">#{n.node_number != null ? n.node_number : '—'}</span>
+                    {editingKey === key ? (
+                      <span className="flex items-center gap-1">
+                        <span className="text-white font-mono font-semibold">#</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="0"
+                          step="1"
+                          autoFocus
+                          value={editValue}
+                          disabled={savingNum}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); saveNumber(n); }
+                            if (e.key === 'Escape') { e.preventDefault(); cancelEditNumber(); }
+                          }}
+                          placeholder="—"
+                          className="w-16 bg-brandSurface border border-brandBorder rounded px-1 py-0.5 text-white font-mono text-xs"
+                        />
+                        <button
+                          onClick={() => saveNumber(n)}
+                          disabled={savingNum}
+                          className="text-[10px] bg-landGreen text-deepBlue font-semibold px-1.5 py-0.5 rounded disabled:opacity-50"
+                          title="Save"
+                        >{savingNum ? '…' : 'Save'}</button>
+                        <button
+                          onClick={cancelEditNumber}
+                          disabled={savingNum}
+                          className="text-[10px] text-slate-400 hover:text-white px-1"
+                          title="Cancel"
+                        >Cancel</button>
+                      </span>
+                    ) : canEditNumber ? (
+                      <button
+                        onClick={() => startEditNumber(n)}
+                        title="Edit node number"
+                        className="text-white font-mono font-semibold hover:text-landGreen border-b border-dashed border-transparent hover:border-landGreen"
+                      >#{n.node_number != null ? n.node_number : '—'}</button>
+                    ) : (
+                      <span className="text-white font-mono font-semibold">#{n.node_number != null ? n.node_number : '—'}</span>
+                    )}
                     <span className="text-slate-400 font-mono text-[10px]">{n.label || ''}</span>
                     {pill}
                     <span className="text-slate-500 ml-auto">{n.lat.toFixed(5)}, {n.lng.toFixed(5)}</span>

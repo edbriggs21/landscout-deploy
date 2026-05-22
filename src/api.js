@@ -98,6 +98,17 @@ export async function updateNodeStatus({ code, layer_id, feature_key, action, up
   return postJson('deployment-update-node-status', { code, layer_id, feature_key, action, updated_by });
 }
 
+// Assign or change a single node's canonical node_number. Pass node_number
+// as null/empty to clear an assignment. Server validates uniqueness within
+// the project and updates the (project_id, line, sort) lookup row.
+export async function updateNodeNumber({ code, layer_id, feature_key, node_number, updated_by }) {
+  return postJson('deployment-update-node-number', {
+    code, layer_id, feature_key,
+    node_number: node_number === '' || node_number == null ? null : Number(node_number),
+    updated_by,
+  });
+}
+
 // Triggers a CSV download in the browser.
 export async function downloadNodesReport({ code }) {
   const res = await fetch(`${BASE}/deployment-export-nodes-report`, {

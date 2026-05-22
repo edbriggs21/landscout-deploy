@@ -72,12 +72,17 @@ export default function App() {
   const [myLocationError, setMyLocationError] = useState('');
   const [crewLocations, setCrewLocations] = useState([]);
   const lastPostedRef = useRef(0);
+  const [showMyLocation, setShowMyLocation] = useState(false);
+  const [myLocation, setMyLocation] = useState(null);
+  const flewToMeRef = useRef(false);
 
-  // Watch GPS while sharing is on, POST every ~10s (and only on meaningful move)
+  // Watch GPS while the user is sharing their location OR viewing their own
+  // position. Always updates the local "my location" dot; only posts to the
+  // server (throttled) while sharing is on.
   useEffect(() => {
-    if (!shareLocation || !code || !name) return;
+    if ((!shareLocation && !showMyLocation) || !code) return;
     if (!navigator.geolocation) {
-      setMyLocationError('Geolocation not available on this device');
+      setMyLocationError('Geolocation is not available on this device');
       return;
     }
     let cancelled = false;
@@ -85,6 +90,13 @@ export default function App() {
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         if (cancelled) return;
+        setMyLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+        setMyLocationError('');
+        if (!shareLocation || !name) return;
         const now = Date.now();
         const sinceLast = now - lastPostedRef.current;
         const movedFar = !lastPos || (
@@ -105,13 +117,20 @@ export default function App() {
           heading_deg: pos.coords.heading,
           speed_mps: pos.coords.speed,
         }).catch(e => console.warn('location update failed', e));
-        setMyLocationError('');
       },
       (err) => { setMyLocationError(err.message || 'GPS error'); },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
     );
     return () => { cancelled = true; navigator.geolocation.clearWatch(watchId); };
-  }, [shareLocation, code, name, role]);
+  }, [shareLocation, showMyLocation, code, name, role]);
+
+  // Once "locate me" is on, fly to the first GPS fix exactly once.
+  useEffect(() => {
+    if (showMyLocation && myLocation && !flewToMeRef.current) {
+      flewToMeRef.current = true;
+      try { mapApiRef.current.flyTo(myLocation.lat, myLocation.lng); } catch (_) {}
+    }
+  }, [showMyLocation, myLocation]);
 
   // Poll the active crew list every 10s
   useEffect(() => {
@@ -334,6 +353,19 @@ export default function App() {
 
   const canEdit = role === 'scout' || role === 'crew';
 
+  const locateMe = () => {
+    if (!showMyLocation) {
+      flewToMeRef.current = false;
+      setShowMyLocation(true);
+      if (myLocation) {
+        flewToMeRef.current = true;
+        try { mapApiRef.current.flyTo(myLocation.lat, myLocation.lng); } catch (_) {}
+      }
+    } else if (myLocation) {
+      try { mapApiRef.current.flyTo(myLocation.lat, myLocation.lng); } catch (_) {}
+    }
+  };
+
   return (
     <div className="h-full w-full relative">
       <div style={{ position: 'absolute', inset: 0, top: 56 }}>
@@ -344,6 +376,9 @@ export default function App() {
         layers={data.layers || []}
         loadedLayers={loadedLayers}
         basemap={basemap}
+        myLocation={myLocation}
+        locating={showMyLocation}
+        onLocateMe={locateMe}
         visibleLayerIds={visibleLayerIds || new Set()}
         onToggleLayer={toggleLayer}
         onReorderLayers={canEdit ? handleReorderLayers : undefined}

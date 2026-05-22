@@ -51,6 +51,7 @@ export default function MapView({
   onReorderLayers,
   crewLocations = [],
   basemap = 'satellite',
+  myLocation, locating, onLocateMe,
   nextWeekNodeNumbers = [],
   currentWeekNodeNumbers = [],
   rightInset = 0,
@@ -242,6 +243,25 @@ export default function MapView({
           'text-color': '#FFFFFF',
           'text-halo-color': '#0B2A4A',
           'text-halo-width': 1.4,
+        },
+      });
+
+      map.addSource('my-location', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'my-location-halo',
+        type: 'circle',
+        source: 'my-location',
+        paint: { 'circle-radius': 18, 'circle-color': '#3B82F6', 'circle-opacity': 0.2 },
+      });
+      map.addLayer({
+        id: 'my-location-dot',
+        type: 'circle',
+        source: 'my-location',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#3B82F6',
+          'circle-stroke-color': '#FFFFFF',
+          'circle-stroke-width': 3,
         },
       });
 
@@ -612,6 +632,18 @@ export default function MapView({
     map.getSource('crew-locations').setData({ type: 'FeatureCollection', features });
   }, [crewLocations, ready]);
 
+  // Sync the my-location source with the user's own GPS position.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !map.getSource('my-location')) return;
+    const features = myLocation ? [{
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [myLocation.lng, myLocation.lat] },
+      properties: {},
+    }] : [];
+    map.getSource('my-location').setData({ type: 'FeatureCollection', features });
+  }, [myLocation, ready]);
+
   // Tell the map to recompute its size when the right-side inset changes
   // (sidebar opens/closes). Without this, MapLibre keeps the old viewport.
   useEffect(() => {
@@ -728,6 +760,28 @@ export default function MapView({
   return (
     <div className="relative w-full h-full" style={{ paddingRight: rightInset + 'px', transition: 'padding-right 200ms ease' }}>
       <div ref={containerRef} className="w-full h-full" />
+      <button
+        type="button"
+        onClick={onLocateMe}
+        title={locating ? 'Recenter on my location' : 'Show my location on the map'}
+        style={{
+          position: 'absolute', bottom: 24, right: rightInset + 14, zIndex: 10,
+          width: 44, height: 44, borderRadius: '50%',
+          background: '#161b22', border: '1px solid ' + (locating ? '#3B82F6' : '#2a3444'),
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke={locating ? '#3B82F6' : '#cdd9e5'} strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="12" r="7" />
+          <line x1="12" y1="1" x2="12" y2="4" />
+          <line x1="12" y1="20" x2="12" y2="23" />
+          <line x1="1" y1="12" x2="4" y2="12" />
+          <line x1="20" y1="12" x2="23" y2="12" />
+          <circle cx="12" cy="12" r="2.6" fill={locating ? '#3B82F6' : '#cdd9e5'} stroke="none" />
+        </svg>
+      </button>
     </div>
   );
 }

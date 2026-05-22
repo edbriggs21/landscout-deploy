@@ -1,7 +1,27 @@
 import React, { useState } from 'react';
 
-export default function LayerPanel({ layers, visibleLayerIds, onToggle, parcelsVisible = true, onToggleParcels, ownerNumbersVisible = false, onToggleOwnerNumbers }) {
+export default function LayerPanel({
+  layers, visibleLayerIds, onToggle,
+  parcelsVisible = true, onToggleParcels,
+  ownerNumbersVisible = false, onToggleOwnerNumbers,
+  onReorder,
+}) {
   const [open, setOpen] = useState(false);
+
+  // The legend lists layers top-of-map first, so the list reads the same way
+  // the map is stacked. `layers` arrives bottom-to-top, so reverse it.
+  const displayLayers = [...layers].reverse();
+
+  // Swap a row with its neighbour and hand the new bottom-to-top order up.
+  const reorderRow = (idx, dir) => {
+    const target = idx + dir;
+    if (target < 0 || target >= displayLayers.length) return;
+    const next = displayLayers.slice();
+    const tmp = next[idx];
+    next[idx] = next[target];
+    next[target] = tmp;
+    onReorder([...next].reverse().map((l) => l.id));
+  };
 
   return (
     <div className="absolute left-3 top-14 z-10 safe-top">
@@ -23,7 +43,57 @@ export default function LayerPanel({ layers, visibleLayerIds, onToggle, parcelsV
             <span>Project layers</span>
             <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white">✕</button>
           </div>
+          {onReorder && displayLayers.length > 1 && (
+            <div className="px-3 py-1.5 text-[10px] text-slate-500 border-b border-brandBorder/40">
+              Use ▲▼ to reorder — top of the list draws on top of the map.
+            </div>
+          )}
           <ul>
+            {displayLayers.map((l, idx) => {
+              const visible = visibleLayerIds.has(l.id);
+              const swatch = l.color || '#9ACD32';
+              return (
+                <li key={l.id} className="border-b border-brandBorder/40 flex items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => onToggle(l.id)}
+                    className={`flex-1 min-w-0 flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-brandBg ${visible ? '' : 'opacity-60'}`}
+                  >
+                    <span
+                      className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
+                      style={{ background: swatch, border: `1px solid ${l.stroke_color || swatch}` }}
+                    />
+                    <span className="flex-1 min-w-0">
+                      <div className="text-white truncate">{l.name}</div>
+                      <div className="text-xs text-slate-500">
+                        {l.geometry_type || '—'} · {l.feature_count || 0} feat.
+                      </div>
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${visible ? 'bg-landGreen text-deepBlue font-semibold' : 'bg-brandBorder text-slate-400'}`}>
+                      {visible ? 'on' : 'off'}
+                    </span>
+                  </button>
+                  {onReorder && (
+                    <div className="flex flex-col justify-center border-l border-brandBorder/40">
+                      <button
+                        type="button"
+                        onClick={() => reorderRow(idx, -1)}
+                        disabled={idx === 0}
+                        title="Move up — draw on top"
+                        className="px-2 flex-1 text-xs text-slate-300 hover:text-white hover:bg-brandBg disabled:opacity-20 disabled:hover:bg-transparent leading-none"
+                      >▲</button>
+                      <button
+                        type="button"
+                        onClick={() => reorderRow(idx, 1)}
+                        disabled={idx === displayLayers.length - 1}
+                        title="Move down"
+                        className="px-2 flex-1 text-xs text-slate-300 hover:text-white hover:bg-brandBg disabled:opacity-20 disabled:hover:bg-transparent leading-none border-t border-brandBorder/40"
+                      >▼</button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
             <li className="border-b border-brandBorder/40">
               <button
                 type="button"
@@ -40,7 +110,7 @@ export default function LayerPanel({ layers, visibleLayerIds, onToggle, parcelsV
                 </span>
               </button>
             </li>
-            <li className="border-b border-brandBorder/40">
+            <li className="last:border-b-0">
               <button
                 type="button"
                 onClick={() => onToggleOwnerNumbers && onToggleOwnerNumbers()}
@@ -56,33 +126,6 @@ export default function LayerPanel({ layers, visibleLayerIds, onToggle, parcelsV
                 </span>
               </button>
             </li>
-            {layers.map(l => {
-              const visible = visibleLayerIds.has(l.id);
-              const swatch = l.color || '#9ACD32';
-              return (
-                <li key={l.id} className="border-b border-brandBorder/40 last:border-b-0">
-                  <button
-                    type="button"
-                    onClick={() => onToggle(l.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-brandBg ${visible ? '' : 'opacity-60'}`}
-                  >
-                    <span
-                      className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
-                      style={{ background: swatch, border: `1px solid ${l.stroke_color || swatch}` }}
-                    />
-                    <span className="flex-1 min-w-0">
-                      <div className="text-white truncate">{l.name}</div>
-                      <div className="text-xs text-slate-500">
-                        {l.geometry_type || '—'} · {l.feature_count || 0} feat.
-                      </div>
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${visible ? 'bg-landGreen text-deepBlue font-semibold' : 'bg-brandBorder text-slate-400'}`}>
-                      {visible ? 'on' : 'off'}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
           </ul>
         </div>
       )}

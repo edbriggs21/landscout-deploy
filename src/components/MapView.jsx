@@ -50,6 +50,7 @@ export default function MapView({
   layers = [], loadedLayers = {}, visibleLayerIds, onToggleLayer,
   parcelsVisible = true, onToggleParcels,
   ownerNumbersVisible = false, onToggleOwnerNumbers,
+  onReorderLayers,
   crewLocations = [],
   nextWeekNodeNumbers = [],
   currentWeekNodeNumbers = [],
@@ -553,6 +554,19 @@ export default function MapView({
     }
   }, [layers, loadedLayers, visibleLayerIds, ready]);
 
+  // Keep the map's overlay draw order in sync with the legend order. Runs
+  // whenever the layers array order changes (the user reordered the legend).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !map.getLayer('access-points-symbol')) return;
+    for (const meta of layers) {
+      const renderId = `ovl-${meta.id}-render`;
+      const strokeId = `ovl-${meta.id}-stroke`;
+      if (map.getLayer(renderId)) { try { map.moveLayer(renderId, 'access-points-symbol'); } catch (_) {} }
+      if (map.getLayer(strokeId)) { try { map.moveLayer(strokeId, 'access-points-symbol'); } catch (_) {} }
+    }
+  }, [layers, loadedLayers, ready]);
+
   // Re-apply node fill colors when the set of blocked owners changes - a
   // scout marking a parcel "blocked" turns its nodes red without a reload.
   useEffect(() => {
@@ -724,6 +738,7 @@ export default function MapView({
         onToggleParcels={onToggleParcels}
         ownerNumbersVisible={ownerNumbersVisible}
         onToggleOwnerNumbers={onToggleOwnerNumbers}
+        onReorder={onReorderLayers}
       />
       <button
         type="button"

@@ -219,6 +219,24 @@ export default function App() {
     }
   }, [code, loadedLayers]);
 
+  // Persist a new layer draw order (legend reorder) and reflect it locally.
+  const handleReorderLayers = useCallback(async (idOrder) => {
+    setData(prev => {
+      if (!prev) return prev;
+      const byId = new Map((prev.layers || []).map(l => [l.id, l]));
+      const reordered = idOrder.map(id => byId.get(id)).filter(Boolean);
+      for (const l of (prev.layers || [])) {
+        if (!idOrder.includes(l.id)) reordered.push(l);
+      }
+      return { ...prev, layers: reordered };
+    });
+    try {
+      await api.reorderLayers({ code, layer_ids: idOrder });
+    } catch (e) {
+      alert('Could not save the layer order: ' + (e.message || e));
+    }
+  }, [code]);
+
   // On first load, lazily fetch all initially-visible layers
   useEffect(() => {
     if (!data || !visibleLayerIds) return;
@@ -312,6 +330,8 @@ export default function App() {
 
   if (!data) return null;
 
+  const canEdit = role === 'scout' || role === 'crew';
+
   return (
     <div className="h-full w-full relative">
       <MapView
@@ -322,6 +342,7 @@ export default function App() {
         loadedLayers={loadedLayers}
         visibleLayerIds={visibleLayerIds || new Set()}
         onToggleLayer={toggleLayer}
+        onReorderLayers={canEdit ? handleReorderLayers : undefined}
         parcelsVisible={parcelsVisible}
         onToggleParcels={() => setParcelsVisible(!parcelsVisible)}
         ownerNumbersVisible={ownerNumbersVisible}

@@ -159,3 +159,8 @@ export async function listAllNodes({ code }) {
 export async function shiftScheduleStops({ code, updates }) {
   return postJson('deployment-plan-shift-days-public', { code, updates });
 }
+
+// Persist the legend / map draw order. layer_ids is bottom-to-top.
+export async function reorderLayers({ code, layer_ids }) {
+  return postJson('deployment-reorder-layers-public', { code, layer_ids });
+}

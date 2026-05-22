@@ -164,3 +164,8 @@ export async function shiftScheduleStops({ code, updates }) {
 export async function reorderLayers({ code, layer_ids }) {
   return postJson('deployment-reorder-layers-public', { code, layer_ids });
 }
+
+// Set / change / clear a node's canonical number. node_number null clears it.
+export async function setNodeNumber({ code, line, sort, node_number }) {
+  return postJson('deployment-set-node-number-public', { code, line, sort, node_number });
+}

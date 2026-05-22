@@ -6,6 +6,10 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
   const [err, setErr] = useState('');
   const [nodes, setNodes] = useState(null);
   const [busyKey, setBusyKey] = useState(null);
+  const [editKey, setEditKey] = useState(null);
+  const [editVal, setEditVal] = useState('');
+  const [editErr, setEditErr] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
 
   const fetchNodes = useCallback(async () => {
     setErr('');
@@ -53,6 +57,31 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
       setErr(e.message || 'Update failed');
     } finally {
       setBusyKey(null);
+    }
+  };
+
+  // --- node-number editing -------------------------------------------------
+  const startEdit = (n) => {
+    setEditKey(`${n.layer_id}::${n.label}`);
+    setEditVal(n.node_number != null ? String(n.node_number) : '');
+    setEditErr('');
+  };
+  const cancelEdit = () => { setEditKey(null); setEditVal(''); setEditErr(''); };
+  const saveNumber = async (n) => {
+    setEditBusy(true); setEditErr('');
+    try {
+      const v = String(editVal).trim();
+      await api.setNodeNumber({
+        code, line: n.line, sort: n.sort,
+        node_number: v === '' ? null : Number(v),
+      });
+      setEditKey(null); setEditVal('');
+      await fetchNodes();
+      if (onChanged) await onChanged();
+    } catch (e) {
+      setEditErr(e.message || 'Could not save the number');
+    } finally {
+      setEditBusy(false);
     }
   };
 
@@ -118,8 +147,31 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
                   : <span className="px-1.5 py-0.5 rounded-full bg-slate-700/40 text-slate-400 text-[10px] font-medium">untouched</span>;
               return (
                 <li key={i} className="bg-brandBg border border-brandBorder/40 rounded p-2 flex flex-col gap-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-white font-mono font-semibold">#{n.node_number != null ? n.node_number : '—'}</span>
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    {editKey === key ? (
+                      <span className="flex items-center gap-1">
+                        <span className="text-slate-400 text-xs">#</span>
+                        <input
+                          type="number" value={editVal} autoFocus
+                          onChange={(e) => setEditVal(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveNumber(n); if (e.key === 'Escape') cancelEdit(); }}
+                          placeholder="blank = none"
+                          className="w-24 bg-brandSurface border border-landGreen rounded px-1 py-0.5 text-white text-xs font-mono"
+                        />
+                        <button onClick={() => saveNumber(n)} disabled={editBusy}
+                          className="text-[11px] bg-landGreen text-deepBlue font-semibold px-2 py-0.5 rounded disabled:opacity-50">{editBusy ? '…' : 'Save'}</button>
+                        <button onClick={cancelEdit} disabled={editBusy}
+                          className="text-[11px] text-slate-400 px-1 hover:text-white">Cancel</button>
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-white font-mono font-semibold">#{n.node_number != null ? n.node_number : '—'}</span>
+                        {canEdit && n.line != null && n.sort != null && (
+                          <button onClick={() => startEdit(n)} title="Edit node number"
+                            className="text-slate-500 hover:text-landGreen text-[11px]">✏️</button>
+                        )}
+                      </>
+                    )}
                     <span className="text-slate-400 font-mono text-[10px]">{n.label || ''}</span>
                     {pill}
                     <span className="text-slate-500 ml-auto">{n.lat.toFixed(5)}, {n.lng.toFixed(5)}</span>
@@ -129,6 +181,9 @@ export default function NodesOnParcel({ owner, code, name, role, onChanged }) {
                       className="text-slate-500 hover:text-white text-xs"
                     >📋</button>
                   </div>
+                  {editKey === key && editErr && (
+                    <div className="text-[10px] text-red-400">{editErr}</div>
+                  )}
                   {canEdit && (
                     <div className="flex gap-1 flex-wrap">
                       {!deployed && !retrieved && (

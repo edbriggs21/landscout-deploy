@@ -37,10 +37,22 @@ function nodeStrokeExpr(nextWeekNums, currentWeekNums) {
 // A point layer gets the deployment-status styling (status colors, node
 // numbers, magenta ring) only if its features carry node_number — i.e. it is
 // the canonical tracking layer. Every other point layer keeps its own style.
-function isNodeStatusLayer(geojson) {
-  const feats = geojson && geojson.features;
-  if (!Array.isArray(feats)) return false;
-  return feats.some(f => f && f.properties && f.properties.node_number != null);
+function trackingLayerIdOf(layers, loadedLayers) {
+  // The canonical tracking layer is the ONE point layer carrying the most
+  // stamped node_numbers. fetch-layer stamps node_number onto every point
+  // layer whose points match the lookup, so "has a node_number" alone is not
+  // enough to single it out.
+  let best = null, bestCount = 0;
+  for (const meta of (layers || [])) {
+    const gj = loadedLayers[meta.id];
+    if (!gj || !Array.isArray(gj.features)) continue;
+    let c = 0;
+    for (const f of gj.features) {
+      if (f && f.properties && f.properties.node_number != null) c++;
+    }
+    if (c > bestCount) { bestCount = c; best = meta.id; }
+  }
+  return bestCount > 0 ? best : null;
 }
 
 export default function MapView({
@@ -66,6 +78,12 @@ export default function MapView({
   const mapRef = useRef(null);
   const didFitRef = useRef(false);
   const [ready, setReady] = useState(false);
+
+  // The single canonical tracking layer; only it gets deploy-status styling.
+  const trackingLayerId = useMemo(
+    () => trackingLayerIdOf(layers, loadedLayers),
+    [layers, loadedLayers],
+  );
 
   // Owner ids a scout has marked "blocked" - nodes on these parcels show red.
   const blockedOwnerIds = useMemo(
@@ -471,7 +489,7 @@ export default function MapView({
             // circle-color: retrieved -> green, deployed -> yellow,
             //   blocked parcel -> red, otherwise (undeployed) -> slate gray.
             // Every node gets a white outline so it reads on any basemap.
-            const nodeLayer = isNodeStatusLayer(loadedLayers[meta.id]);
+            const nodeLayer = (meta.id === trackingLayerId);
             map.addLayer({
               id: layerId, type: 'circle', source: sourceId,
               minzoom, maxzoom,
@@ -585,32 +603,38 @@ export default function MapView({
     }
   }, [layers, loadedLayers, ready]);
 
-  // Re-apply node fill colors when the set of blocked owners changes - a
-  // scout marking a parcel "blocked" turns its nodes red without a reload.
+  // Re-assert every point layer's paint whenever the tracking layer, blocked
+  // owners, or schedule weeks change. The tracking layer gets deploy-status
+  // styling; every other point layer keeps its own configured style. This
+  // also corrects a layer briefly mis-styled while the layers were loading.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     for (const meta of layers) {
-      if (!isNodeStatusLayer(loadedLayers[meta.id])) continue;
+      const gj = loadedLayers[meta.id];
+      if (!gj) continue;
+      if (!String(meta.geometry_type || '').toLowerCase().includes('point')) continue;
       const layerId = `ovl-${meta.id}-render`;
-      if (map.getLayer(layerId)) {
-        try { map.setPaintProperty(layerId, 'circle-color', nodeColorExpr(blockedOwnerIds)); } catch (_) {}
-      }
+      if (!map.getLayer(layerId)) continue;
+      const pr = Number(meta.point_size) || 5;
+      try {
+        if (meta.id === trackingLayerId) {
+          map.setPaintProperty(layerId, 'circle-color', nodeColorExpr(blockedOwnerIds));
+          map.setPaintProperty(layerId, 'circle-stroke-color', nodeStrokeExpr(nextWeekNodeNumbers, currentWeekNodeNumbers));
+          map.setPaintProperty(layerId, 'circle-stroke-width', 2);
+          map.setPaintProperty(layerId, 'circle-radius', [
+            'interpolate', ['linear'], ['zoom'],
+            10, Math.max(pr, 6), 14, Math.max(pr, 11), 18, Math.max(pr, 16),
+          ]);
+        } else {
+          map.setPaintProperty(layerId, 'circle-color', meta.color || '#9ACD32');
+          map.setPaintProperty(layerId, 'circle-stroke-color', meta.point_stroke_color || meta.stroke_color || meta.color || '#9ACD32');
+          map.setPaintProperty(layerId, 'circle-stroke-width', Number(meta.point_stroke_width) || 1);
+          map.setPaintProperty(layerId, 'circle-radius', pr);
+        }
+      } catch (_) {}
     }
-  }, [blockedOwnerIds, layers, loadedLayers, ready]);
-
-  // Recolor node outlines (magenta ring) when the schedule data loads.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    for (const meta of layers) {
-      if (!isNodeStatusLayer(loadedLayers[meta.id])) continue;
-      const layerId = `ovl-${meta.id}-render`;
-      if (map.getLayer(layerId)) {
-        try { map.setPaintProperty(layerId, 'circle-stroke-color', nodeStrokeExpr(nextWeekNodeNumbers, currentWeekNodeNumbers)); } catch (_) {}
-      }
-    }
-  }, [nextWeekNodeNumbers, currentWeekNodeNumbers, layers, loadedLayers, ready]);
+  }, [layers, loadedLayers, trackingLayerId, blockedOwnerIds, nextWeekNodeNumbers, currentWeekNodeNumbers, ready]);
 
   // Sync the crew-locations source with the polled list of active crew.
   useEffect(() => {

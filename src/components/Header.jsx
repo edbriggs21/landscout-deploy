@@ -33,9 +33,17 @@ export default function Header({
   project, nodeStats, role, name,
   shareLocation, onToggleShareLocation, locationError,
   basemap, onCycleBasemap,
+  onExport,
   rightInset = 0,
   layerProps = {},
 }) {
+  const [exporting, setExporting] = React.useState(false);
+  const handleExport = async () => {
+    if (!onExport || exporting) return;
+    setExporting(true);
+    try { await onExport(); }
+    finally { setExporting(false); }
+  };
   return (
     <div style={{
       position: 'absolute', top: 0, left: 0, right: rightInset, height: 56, zIndex: 20,
@@ -79,6 +87,20 @@ export default function Header({
           <Stat dot="#FACC15" value={nodeStats.deployed} />
           <Stat dot="#10B981" value={nodeStats.retrieved} />
         </div>
+      )}
+
+      {/* Export CSV */}
+      {onExport && (
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting}
+          title="Download nodes report as CSV"
+          style={{ ...btn, opacity: exporting ? 0.6 : 1, cursor: exporting ? 'wait' : 'pointer' }}
+        >
+          <span style={{ fontSize: 13 }}>📥</span>
+          <span style={{ fontSize: 12, color: C.text }}>{exporting ? 'Exporting…' : 'Export CSV'}</span>
+        </button>
       )}
 
       {/* Share location */}

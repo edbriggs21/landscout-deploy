@@ -441,6 +441,10 @@ export default function App() {
           identity.setBasemapPref(next);
           setBasemapState(next);
         }}
+        onExport={async () => {
+          try { await api.downloadNodesReport({ code }); }
+          catch (e) { alert('Export failed: ' + (e.message || e)); }
+        }}
         rightInset={(planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)}
         layerProps={{
           layers: data.layers || [],

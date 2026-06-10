@@ -19,6 +19,7 @@ export default function SearchBox({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef(null);
+  const triggerRef = useRef(null);
 
   const trimmed = q.trim();
   const matches = trimmed && searchFn ? (searchFn(trimmed) || []) : [];
@@ -41,8 +42,12 @@ export default function SearchBox({
     else if (e.key === 'Enter') { e.preventDefault(); pick(matches[active]); }
   };
 
+  // Read the trigger's on-screen position when open, so the dropdown can be
+  // rendered fixed and escape the header's overflow clip.
+  const tRect = (open && triggerRef.current) ? triggerRef.current.getBoundingClientRect() : null;
+
   return (
-    <div style={{ position: 'relative', flexShrink: 0 }}>
+    <div ref={triggerRef} style={{ position: 'relative', flexShrink: 0 }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
         background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6,
@@ -75,7 +80,7 @@ export default function SearchBox({
         <>
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 28 }} />
           <div style={{
-            position: 'absolute', top: '100%', left: 0, marginTop: 4, minWidth: width + 60, maxWidth: 360, zIndex: 29,
+            position: 'fixed', top: tRect ? tRect.bottom + 4 : 60, left: tRect ? tRect.left : 12, minWidth: width + 60, maxWidth: 360, zIndex: 29,
             background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8,
             boxShadow: '0 12px 28px rgba(0,0,0,0.6)', maxHeight: 320, overflowY: 'auto',
             fontFamily: '-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif',

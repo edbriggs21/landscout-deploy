@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import * as api from '../api.js';
 import StopEditor, { inp, btn } from './StopEditor.jsx';
+import SearchBox from './SearchBox.jsx';
 
 // Full-screen schedule board: every week is a column, every day a section.
 // Drag cards between days/weeks, click a card to edit, use Select mode for
@@ -92,11 +93,12 @@ function computeMove(stops, stopId, toWeek, toDay, toIndex) {
 }
 
 // ---- compact stop card ----------------------------------------------------
-function StopCard({ stop, crew, canEdit, canDrag, selectMode, selected, dragging, onClick, onDragStart, onDragEnd, onDragOver }) {
+function StopCard({ stop, crew, canEdit, canDrag, selectMode, selected, dragging, flash, cardRef, onClick, onDragStart, onDragEnd, onDragOver }) {
   const accent = stop.action === 'retrieve' ? C.retrieve : C.deploy;
   const done = !!stop.done_at;
   return (
     <div
+      ref={cardRef}
       draggable={canDrag}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -111,6 +113,7 @@ function StopCard({ stop, crew, canEdit, canDrag, selectMode, selected, dragging
         borderRadius: 5, padding: '4px 6px', marginBottom: 4,
         cursor: canEdit ? (selectMode ? 'pointer' : 'grab') : 'default',
         opacity: dragging ? 0.4 : done ? 0.55 : 1,
+        boxShadow: flash ? '0 0 0 2px #FACC15, 0 0 16px 4px rgba(250,204,21,0.5)' : 'none',
       }}
     >
       {selectMode && (
@@ -181,7 +184,9 @@ export default function ScheduleBoard({ code, role, onClose }) {
   const dragRef = useRef(null);
   const dropRef = useRef(null);
   const colRefs = useRef({});
+  const cardRefs = useRef({});
   const didScroll = useRef(false);
+  const [flashIds, setFlashIds] = useState(new Set());
   const opQueue = useRef(Promise.resolve());
 
   // Serialize every schedule write so quick successive drags / edits are
@@ -640,6 +645,63 @@ export default function ScheduleBoard({ code, role, onClose }) {
     await addNodes(chosen, drawerWeek, toDay, drawerAction);
   };
 
+  // ---- search ------------------------------------------------------------
+  const boardSearch = (q) => {
+    const ql = q.toLowerCase();
+    const out = [];
+    const seen = new Set();
+    for (const st of allStops) {
+      const name = st.owner_name || '';
+      if (!name || seen.has(name)) continue;
+      if (name.toLowerCase().includes(ql)) {
+        seen.add(name);
+        out.push({ key: 'o:' + name, kind: 'owner', label: name, payload: { kind: 'owner', owner_name: name } });
+        if (out.length >= 10) break;
+      }
+    }
+    if (/^\d+/.test(q)) {
+      const seenN = new Set();
+      for (const st of allStops) {
+        const n = st.node_number;
+        if (n == null || seenN.has(n)) continue;
+        if (String(n).startsWith(q)) {
+          seenN.add(n);
+          out.push({ key: 'n:' + n, kind: 'node', label: '#' + n, sublabel: st.owner_name || '', payload: { kind: 'node', node_number: n } });
+          if (out.length >= 20) break;
+        }
+      }
+      for (const nd of allNodes) {
+        const n = nd.node_number;
+        if (n == null || seenN.has(n)) continue;
+        if (String(n).startsWith(q)) {
+          seenN.add(n);
+          out.push({ key: 'n:' + n, kind: 'node', label: '#' + n, sublabel: (nd.owner_name || nd.label || '') + ' (not scheduled)', payload: { kind: 'node', node_number: n } });
+          if (out.length >= 25) break;
+        }
+      }
+    }
+    return out;
+  };
+  const onBoardPick = (m) => {
+    const p = m.payload;
+    setCrewFilter('');
+    let matching = [];
+    if (p.kind === 'owner') matching = allStops.filter((st) => st.owner_name === p.owner_name);
+    else matching = allStops.filter((st) => st.node_number === p.node_number);
+    if (!matching.length) { setError('No scheduled stop for that ' + (p.kind === 'owner' ? 'owner' : 'node') + '.'); return; }
+    matching.sort((a, b) => (a.week_start_date || '').localeCompare(b.week_start_date || ''));
+    const first = matching[0];
+    const ids = new Set(matching.map((st) => st.id));
+    setFlashIds(ids);
+    setTimeout(() => setFlashIds(new Set()), 2600);
+    const el = colRefs.current[first.week_start_date];
+    if (el && el.scrollIntoView) { try { el.scrollIntoView({ inline: 'start', block: 'nearest' }); } catch (_) {} }
+    setTimeout(() => {
+      const cel = cardRefs.current[first.id];
+      if (cel && cel.scrollIntoView) { try { cel.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {} }
+    }, 120);
+  };
+
   // ---- render -------------------------------------------------------------
   const chip = (label, value) => (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', textAlign: 'center' }}>
@@ -678,6 +740,12 @@ export default function ScheduleBoard({ code, role, onClose }) {
         {canEdit && (
           <button style={hdrBtn(drawerOpen)} onClick={() => setDrawerOpen((o) => !o)}>+ Add nodes</button>
         )}
+        <SearchBox
+          placeholder="Search owner or node #"
+          width={180}
+          searchFn={boardSearch}
+          onPick={onBoardPick}
+        />
         <select
           value={crewFilter}
           onChange={(e) => setCrewFilter(e.target.value)}
@@ -871,6 +939,8 @@ export default function ScheduleBoard({ code, role, onClose }) {
                             )}
                             <StopCard
                               stop={s}
+                              cardRef={(el) => { if (el) cardRefs.current[s.id] = el; else delete cardRefs.current[s.id]; }}
+                              flash={flashIds.has(s.id)}
                               crew={s.crew_label ? crewByName.get(s.crew_label) : null}
                               canEdit={canEdit}
                               canDrag={canEdit && !selectMode && !crewFilter}

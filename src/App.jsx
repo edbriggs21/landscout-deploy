@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import * as api from './api.js';
 import * as identity from './lib/identity.js';
+import { parcelCentroid } from './lib/maplibre-setup.js';
 
 import CodeEntry from './components/CodeEntry.jsx';
 import NamePrompt from './components/NamePrompt.jsx';
@@ -58,6 +59,7 @@ export default function App() {
   const [planOpen, setPlanOpen] = useState(true);
   const [boardOpen, setBoardOpen] = useState(false);
   const [basemap, setBasemapState] = useState(identity.getBasemap());
+  const [allNodes, setAllNodes] = useState([]);
   const [selectedNodeNumber, setSelectedNodeNumber] = useState(null);
   const mapApiRef = useRef({ flyTo: () => {} }); // populated by MapView via onMapReady
   const [parcelsVisible, setParcelsVisibleState] = useState(identity.getParcelsVisible());
@@ -131,6 +133,19 @@ export default function App() {
       try { mapApiRef.current.flyTo(myLocation.lat, myLocation.lng); } catch (_) {}
     }
   }, [showMyLocation, myLocation]);
+
+  // Load every node once we have a code, so the search box can find them.
+  useEffect(() => {
+    if (!code) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.listAllNodes({ code });
+        if (!cancelled) setAllNodes(r.nodes || []);
+      } catch (e) { /* search just stays node-less */ }
+    })();
+    return () => { cancelled = true; };
+  }, [code]);
 
   // Poll the active crew list every 10s
   useEffect(() => {
@@ -353,6 +368,44 @@ export default function App() {
 
   const canEdit = role === 'scout' || role === 'crew';
 
+  // Search across owners (by name) and nodes (by node_number).
+  const mapSearch = (q) => {
+    const ql = q.toLowerCase();
+    const out = [];
+    for (const o of (data.owners || [])) {
+      if ((o.name || '').toLowerCase().includes(ql)) {
+        out.push({ key: 'o:' + o.id, kind: 'owner', label: o.name, sublabel: o.stage || '', payload: { kind: 'owner', owner: o } });
+        if (out.length >= 10) break;
+      }
+    }
+    if (/^\d+/.test(q)) {
+      for (const n of allNodes) {
+        const ns = String(n.node_number);
+        if (ns.startsWith(q)) {
+          out.push({ key: 'n:' + n.node_number, kind: 'node', label: '#' + n.node_number, sublabel: n.owner_name || n.label || '', payload: { kind: 'node', node: n } });
+          if (out.length >= 20) break;
+        }
+      }
+    }
+    return out;
+  };
+  const onMapSearchPick = (m) => {
+    const p = m.payload;
+    if (p.kind === 'owner') {
+      selectOwner(p.owner.id);
+      try {
+        const c = parcelCentroid(p.owner);
+        if (c && mapApiRef.current) mapApiRef.current.flyTo(c[1], c[0]);
+      } catch (_) {}
+    } else if (p.kind === 'node') {
+      setSelectedNodeNumber(p.node.node_number);
+      if (p.node.lat != null && p.node.lng != null && mapApiRef.current) {
+        try { mapApiRef.current.flyTo(p.node.lat, p.node.lng); } catch (_) {}
+      }
+      setPlanOpen(true);
+    }
+  };
+
   const locateMe = () => {
     if (!showMyLocation) {
       flewToMeRef.current = false;
@@ -446,6 +499,7 @@ export default function App() {
           catch (e) { alert('Export failed: ' + (e.message || e)); }
         }}
         rightInset={(planOpen ? 380 : 0) + (selectedOwner ? 380 : 0)}
+        search={{ searchFn: mapSearch, onPick: onMapSearchPick, placeholder: 'Search owner or node #' }}
         layerProps={{
           layers: data.layers || [],
           visibleLayerIds: visibleLayerIds || new Set(),

@@ -1,5 +1,6 @@
 import React from 'react';
 import LayerPanel from './LayerPanel.jsx';
+import SearchBox from './SearchBox.jsx';
 
 // App header, styled to match the Node Placement Schedule panel: dark slate
 // surfaces, hairline borders, small uppercase labels. Houses the project,
@@ -34,6 +35,7 @@ export default function Header({
   shareLocation, onToggleShareLocation, locationError,
   basemap, onCycleBasemap,
   onExport,
+  search,
   rightInset = 0,
   layerProps = {},
 }) {
@@ -76,6 +78,14 @@ export default function Header({
         <span style={{ fontSize: 13 }}>{basemap === 'satellite' ? '🛰️' : '🗺️'}</span>
         <span style={{ fontSize: 12, color: C.text }}>{basemap === 'satellite' ? 'Satellite' : 'Streets'}</span>
       </button>
+
+      {search && search.searchFn && (
+        <SearchBox
+          placeholder={search.placeholder || 'Search owner or node #'}
+          searchFn={search.searchFn}
+          onPick={search.onPick}
+        />
+      )}
 
       <div style={{ flex: 1, minWidth: 8 }} />
 

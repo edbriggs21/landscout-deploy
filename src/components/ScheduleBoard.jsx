@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import * as api from '../api.js';
-import StopEditor, { inp, btn } from './StopEditor.jsx';
+import StopEditor, { inp, btn, stopFieldsFromOwner } from './StopEditor.jsx';
 import SearchBox from './SearchBox.jsx';
 
 // Full-screen schedule board: every week is a column, every day a section.
@@ -66,27 +66,6 @@ function fmtMD(iso) {
 }
 function reorderArr(arr) {
   return arr.slice().sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-}
-
-// Pull the owner's map-side Ops Info into the fields a schedule stop carries,
-// so a freshly-added node arrives pre-filled instead of blank. Gate code,
-// contact, and notes (access directions + general ops notes) all come across.
-function stopFieldsFromOwner(owner) {
-  if (!owner) return { gate_code: '', contact_name: '', contact_phone: '', task_label: '', task_notes: '' };
-  const info = owner.ops_info || {};
-  const access = (info.access_directions || '').trim();
-  const general = (info.general_notes || '').trim();
-  let task_label = '', task_notes = '';
-  if (access && general) { task_label = 'Access'; task_notes = `${access}\n\n${general}`; }
-  else if (access)       { task_label = 'Access'; task_notes = access; }
-  else if (general)      { task_label = 'Task';   task_notes = general; }
-  return {
-    gate_code: info.gate_info || '',
-    contact_name: owner.owner_name || owner.name || '',
-    contact_phone: owner.phone || '',
-    task_label,
-    task_notes,
-  };
 }
 
 // Pure: returns the full stop list after moving `stopId` into (toWeek,toDay) at
@@ -1159,6 +1138,7 @@ export default function ScheduleBoard({ code, role, owners = [], onClose }) {
           stop={editing}
           weekDates={[]}
           code={code}
+          owners={owners}
           onCancel={() => setEditing(null)}
           onSave={saveEdit}
           onDelete={editing.id ? deleteEdit : null}

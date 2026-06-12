@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import * as api from '../api.js';
 
 // Shared stop editor modal — used by both PlanSidebar and ScheduleBoard.
@@ -14,8 +14,46 @@ export function mondayOfDate(iso) {
   return dt.toISOString().slice(0, 10);
 }
 
-export default function StopEditor({ stop, weekDates, code, onCancel, onSave, onDelete }) {
-  const [form, setForm] = useState(stop);
+// Pull an owner's map-side Ops Info into the fields a schedule stop carries
+// (gate code, contact, notes). Shared by ScheduleBoard's add-node path.
+export function stopFieldsFromOwner(owner) {
+  if (!owner) return { gate_code: '', contact_name: '', contact_phone: '', task_label: '', task_notes: '' };
+  const info = owner.ops_info || {};
+  const access = (info.access_directions || '').trim();
+  const general = (info.general_notes || '').trim();
+  let task_label = '', task_notes = '';
+  if (access && general) { task_label = 'Access'; task_notes = `${access}\n\n${general}`; }
+  else if (access)       { task_label = 'Access'; task_notes = access; }
+  else if (general)      { task_label = 'Task';   task_notes = general; }
+  return {
+    gate_code: info.gate_info || '',
+    contact_name: owner.owner_name || owner.name || '',
+    contact_phone: owner.phone || '',
+    task_label,
+    task_notes,
+  };
+}
+
+// Fill only the empty Ops-derived fields of a stop from its owner, so a stop
+// shows the owner's gate/contact/notes without clobbering any manual edits.
+export function fillEmptyFromOwner(stop, owner) {
+  if (!owner) return stop;
+  const ops = stopFieldsFromOwner(owner);
+  const out = { ...stop };
+  for (const k of ['gate_code', 'contact_name', 'contact_phone', 'task_notes', 'task_label']) {
+    if (!String(out[k] || '').trim() && ops[k]) out[k] = ops[k];
+  }
+  return out;
+}
+
+export default function StopEditor({ stop, weekDates, code, owners = [], onCancel, onSave, onDelete }) {
+  // owner_id -> owner, so the editor can surface that owner's Ops Info.
+  const ownerById = useMemo(() => {
+    const m = new Map();
+    for (const o of (owners || [])) m.set(o.id, o);
+    return m;
+  }, [owners]);
+  const [form, setForm] = useState(() => fillEmptyFromOwner(stop, ownerById.get(stop.owner_id)));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [nodes, setNodes] = useState([]);
@@ -73,7 +111,10 @@ export default function StopEditor({ stop, weekDates, code, onCancel, onSave, on
                   {filteredNodes.map(n => (
                     <button key={n.node_number} type="button"
                       onClick={() => {
-                        setForm(f => ({ ...f, node_number: n.node_number, owner_id: n.owner_id || f.owner_id, owner_name: n.owner_name || f.owner_name }));
+                        setForm(f => fillEmptyFromOwner(
+                          { ...f, node_number: n.node_number, owner_id: n.owner_id || f.owner_id, owner_name: n.owner_name || f.owner_name },
+                          n.owner_id ? ownerById.get(n.owner_id) : null,
+                        ));
                         setPickerOpen(false); setNodeQuery('');
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid #1c2330', color: '#cdd9e5', padding: '6px 8px', fontSize: 11, cursor: 'pointer' }}>

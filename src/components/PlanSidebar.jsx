@@ -106,7 +106,7 @@ function emptyStop(weekStart, dayDate, nextOrder) {
   };
 }
 
-export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNumber, onSelectNode, onFlyTo, onOpenOpsInfo, onOpenBoard }) {
+export default function PlanSidebar({ open, onToggle, code, role, owners = [], selectedNodeNumber, onSelectNode, onFlyTo, onOpenOpsInfo, onOpenBoard }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
@@ -541,7 +541,7 @@ export default function PlanSidebar({ open, onToggle, code, role, selectedNodeNu
         </div>
 
       {/* Stop editor sub-modal */}
-      {editing && <StopEditor stop={editing} weekDates={weekDates} code={code} onCancel={() => setEditing(null)} onSave={saveEdit} onDelete={editing.id ? deleteEdit : null} />}
+      {editing && <StopEditor stop={editing} weekDates={weekDates} code={code} owners={owners} onCancel={() => setEditing(null)} onSave={saveEdit} onDelete={editing.id ? deleteEdit : null} />}
     </div>
   );
 }

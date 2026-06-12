@@ -538,6 +538,7 @@ export default function App() {
         onToggle={() => setPlanOpen(o => !o)}
         code={code}
         role={role}
+        owners={data.owners}
         selectedNodeNumber={selectedNodeNumber}
         onSelectNode={(n) => setSelectedNodeNumber(n)}
         onFlyTo={(lat, lng) => mapApiRef.current.flyTo(lat, lng)}

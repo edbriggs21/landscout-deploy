@@ -16,6 +16,8 @@ const C = {
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const COL_W = 264;
+// How long after a deploy its retrieval is auto-scheduled. 1 = next day (24h).
+const RETRIEVE_OFFSET_DAYS = 1;
 const menuItem = {
   display: 'block', width: '100%', textAlign: 'left', background: 'transparent',
   border: 'none', borderBottom: '1px solid ' + C.border, color: C.text,
@@ -53,6 +55,12 @@ function mondayOf(iso) {
 function todayISO() {
   const n = new Date();
   return `${n.getFullYear()}-${pad2(n.getMonth() + 1)}-${pad2(n.getDate())}`;
+}
+// Whole-day difference (b - a) between two YYYY-MM-DD dates.
+function daysBetween(a, b) {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
 }
 function fmtWeekRange(weekStart) {
   const end = shiftDays(weekStart, 6);
@@ -365,8 +373,25 @@ export default function ScheduleBoard({ code, role, owners = [], onClose }) {
       if (curIdx > -1 && curIdx < idx) idx -= 1;
       if (curIdx === idx) return; // dropped in its current spot
     }
-    const { next, targetList, sourceList } = computeMove(allStops, stopId, toWeek, toDay, idx);
-    setAllStops(next);   // optimistic - the board updates instantly
+    const primary = computeMove(allStops, stopId, toWeek, toDay, idx);
+    let working = primary.next;
+
+    // Dragging a deploy carries its paired retrieve along by the same number of
+    // days, so the pair keeps its gap. A retrieve moved on its own isn't paired
+    // here, so it can be repositioned independently.
+    const delta = daysBetween(fromDay, toDay);
+    const retrieve = (moving.action === 'deploy' && delta !== 0)
+      ? allStops.find((s) => s.node_number === moving.node_number && s.action === 'retrieve')
+      : null;
+    let retrieveMove = null, retDay = null, retWeek = null;
+    if (retrieve) {
+      retDay = shiftDays(retrieve.day_date, delta);
+      retWeek = mondayOf(retDay);
+      retrieveMove = computeMove(working, retrieve.id, retWeek, retDay, null);
+      working = retrieveMove.next;
+    }
+
+    setAllStops(working);   // optimistic - the board updates instantly
     setError('');
     enqueue(async () => {
       try {
@@ -375,13 +400,28 @@ export default function ScheduleBoard({ code, role, owners = [], onClose }) {
         }
         await api.reorderScheduleStops({
           code,
-          updates: targetList.map((s, i) => ({ id: s.id, day_date: toDay, stop_order: i + 1 })),
+          updates: primary.targetList.map((s, i) => ({ id: s.id, day_date: toDay, stop_order: i + 1 })),
         });
-        if (sourceList.length) {
+        if (primary.sourceList.length) {
           await api.reorderScheduleStops({
             code,
-            updates: sourceList.map((s, i) => ({ id: s.id, day_date: fromDay, stop_order: i + 1 })),
+            updates: primary.sourceList.map((s, i) => ({ id: s.id, day_date: fromDay, stop_order: i + 1 })),
           });
+        }
+        if (retrieveMove) {
+          if (retrieve.week_start_date !== retWeek) {
+            await api.upsertScheduleStop({ ...retrieve, code, week_start_date: retWeek, day_date: retDay });
+          }
+          await api.reorderScheduleStops({
+            code,
+            updates: retrieveMove.targetList.map((s, i) => ({ id: s.id, day_date: retDay, stop_order: i + 1 })),
+          });
+          if (retrieveMove.sourceList.length) {
+            await api.reorderScheduleStops({
+              code,
+              updates: retrieveMove.sourceList.map((s, i) => ({ id: s.id, day_date: retrieve.day_date, stop_order: i + 1 })),
+            });
+          }
         }
       } catch (e) {
         setError((e && e.message) || 'Move failed - reloading the board');
@@ -395,19 +435,40 @@ export default function ScheduleBoard({ code, role, owners = [], onClose }) {
     return enqueue(async () => {
       setBusy(true); setError('');
       try {
-        let order = allStops.filter((s) => s.week_start_date === toWeek && s.day_date === toDay).length;
+        const act = action || 'deploy';
+        // The retrieval lands RETRIEVE_OFFSET_DAYS after the deploy (default 24h).
+        const retDay = shiftDays(toDay, RETRIEVE_OFFSET_DAYS);
+        const retWeek = mondayOf(retDay);
+        // Running stop_order per day so the deploy and its paired retrieve each
+        // append to the end of their respective days.
+        const orderByDay = {};
+        const nextOrder = (week, day) => {
+          const k = week + '|' + day;
+          if (orderByDay[k] == null) {
+            orderByDay[k] = allStops.filter((s) => s.week_start_date === week && s.day_date === day).length;
+          }
+          return (orderByDay[k] += 1);
+        };
         for (const n of nodes) {
-          order += 1;
           // Carry the owner's map-side Ops Info (gate code, contact, notes)
-          // into the new stop so it isn't created blank.
+          // into the new stop(s) so they aren't created blank.
           const ops = stopFieldsFromOwner(n.owner_id != null ? ownerById.get(n.owner_id) : null);
-          await api.upsertScheduleStop({
-            code, week_start_date: toWeek, day_date: toDay, stop_order: order,
-            action: action || 'deploy', node_number: n.node_number,
+          const base = {
+            code, node_number: n.node_number,
             owner_id: n.owner_id != null ? n.owner_id : null, owner_name: n.owner_name || '',
-            scheduled_time: '', crew_label: '',
-            ...ops,
+            scheduled_time: '', crew_label: '', ...ops,
+          };
+          await api.upsertScheduleStop({
+            ...base, action: act,
+            week_start_date: toWeek, day_date: toDay, stop_order: nextOrder(toWeek, toDay),
           });
+          // Deploying a node also schedules its retrieval, unless one already exists.
+          if (act === 'deploy' && !allStops.some((s) => s.node_number === n.node_number && s.action === 'retrieve')) {
+            await api.upsertScheduleStop({
+              ...base, action: 'retrieve',
+              week_start_date: retWeek, day_date: retDay, stop_order: nextOrder(retWeek, retDay),
+            });
+          }
         }
         await loadAll();
       } catch (e) {

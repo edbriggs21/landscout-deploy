@@ -492,6 +492,15 @@ export default function ScheduleBoard({ code, role, owners = [], onClose }) {
       try {
         for (const s of chosen) {
           await api.upsertScheduleStop({ ...s, code, week_start_date: toWeek, day_date: toDay });
+          // Carry a moved deploy's paired retrieve, keeping the gap, unless the
+          // retrieve is itself in the selection (it'll move on its own).
+          if (s.action === 'deploy') {
+            const ret = allStops.find((r) => r.node_number === s.node_number && r.action === 'retrieve' && !selected.has(r.id));
+            if (ret) {
+              const newRetDay = shiftDays(toDay, daysBetween(s.day_date, ret.day_date));
+              await api.upsertScheduleStop({ ...ret, code, week_start_date: mondayOf(newRetDay), day_date: newRetDay });
+            }
+          }
         }
         setSelected(new Set());
         await loadAll();
@@ -526,12 +535,24 @@ export default function ScheduleBoard({ code, role, owners = [], onClose }) {
   function saveEdit(form) {
     const body = { ...form, code };
     if (body.scheduled_time && body.scheduled_time.length === 5) body.scheduled_time += ':00';
-    if (body.id == null) {
+    const isNew = body.id == null;
+    if (isNew) {
       const cnt = allStops.filter((s) => s.week_start_date === body.week_start_date && s.day_date === body.day_date).length;
       body.stop_order = cnt + 1;
     }
+    // A brand-new deploy also schedules its retrieval 24h later, unless the
+    // node already has one.
+    const num = Number(body.node_number);
+    const pairRetrieve = isNew && body.action === 'deploy' && body.node_number !== '' && body.node_number != null
+      && !allStops.some((s) => s.node_number === num && s.action === 'retrieve');
     return enqueue(async () => {
       await api.upsertScheduleStop(body);
+      if (pairRetrieve) {
+        const retDay = shiftDays(body.day_date, RETRIEVE_OFFSET_DAYS);
+        const retWeek = mondayOf(retDay);
+        const retOrder = allStops.filter((s) => s.week_start_date === retWeek && s.day_date === retDay).length + 1;
+        await api.upsertScheduleStop({ ...body, id: null, action: 'retrieve', week_start_date: retWeek, day_date: retDay, stop_order: retOrder });
+      }
       setEditing(null);
       await loadAll();
     });

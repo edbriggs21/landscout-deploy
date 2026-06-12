@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import * as api from '../api.js';
-import StopEditor from './StopEditor.jsx';
+import StopEditor, { mondayOfDate } from './StopEditor.jsx';
+
+// How long after a deploy its retrieval is auto-scheduled. 1 = next day (24h).
+const RETRIEVE_OFFSET_DAYS = 1;
 
 // Slide-out side panel for editing and viewing the weekly plan, styled to
 // match the surveyor's koloma_node_schedule HTML: dark surfaces, big colored
@@ -58,6 +61,13 @@ function shiftDays(iso, days) {
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + days);
   return dt.toISOString().slice(0, 10);
+}
+
+// Whole-day difference (b - a) between two YYYY-MM-DD dates.
+function daysBetween(a, b) {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
 }
 
 // Compute the Monday-based 7-day list for a given week_start_date.
@@ -242,19 +252,40 @@ export default function PlanSidebar({ open, onToggle, code, role, owners = [], s
     const sourceDay = (stopsByDay.get(stop.day_date) || []).filter(s => s.id !== stop.id);
     const repack = sourceDay.map((s, i) => ({ id: s.id, stop_order: i + 1 }));
     if (repack.length > 0) await api.reorderScheduleStops({ code, updates: repack });
+    // Carry a moved deploy's paired retrieve along by the same number of days
+    // (only if the retrieve is in the week currently loaded here).
+    if (stop.action === 'deploy') {
+      const ret = (data?.stops || []).find(s => s.node_number === stop.node_number && s.action === 'retrieve');
+      if (ret) {
+        const newRetDay = shiftDays(ret.day_date, daysBetween(stop.day_date, toDate));
+        await api.upsertScheduleStop({ ...ret, code, week_start_date: mondayOfDate(newRetDay), day_date: newRetDay });
+      }
+    }
     await refresh();
   };
 
   const saveEdit = async (form) => {
     const body = { ...form, code };
     if (body.scheduled_time && body.scheduled_time.length === 5) body.scheduled_time += ':00';
-    if (body.id == null) {
+    const isNew = body.id == null;
+    if (isNew) {
       // Insert: stop_order is required and should be the next available on that day
       const day = body.day_date;
       const existing = (stopsByDay.get(day) || []).length;
       body.stop_order = existing + 1;
     }
+    // A brand-new deploy also schedules its retrieval 24h later, unless the
+    // node already has one on the week loaded here.
+    const num = Number(body.node_number);
+    const pairRetrieve = isNew && body.action === 'deploy' && body.node_number !== '' && body.node_number != null
+      && !(data?.stops || []).some(s => s.node_number === num && s.action === 'retrieve');
     await api.upsertScheduleStop(body);
+    if (pairRetrieve) {
+      const retDay = shiftDays(body.day_date, RETRIEVE_OFFSET_DAYS);
+      const retWeek = mondayOfDate(retDay);
+      const retOrder = (data?.stops || []).filter(s => s.day_date === retDay).length + 1;
+      await api.upsertScheduleStop({ ...body, id: null, action: 'retrieve', week_start_date: retWeek, day_date: retDay, stop_order: retOrder });
+    }
     setEditing(null);
     await refresh();
   };

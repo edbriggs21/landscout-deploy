@@ -68,6 +68,27 @@ function reorderArr(arr) {
   return arr.slice().sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 }
 
+// Pull the owner's map-side Ops Info into the fields a schedule stop carries,
+// so a freshly-added node arrives pre-filled instead of blank. Gate code,
+// contact, and notes (access directions + general ops notes) all come across.
+function stopFieldsFromOwner(owner) {
+  if (!owner) return { gate_code: '', contact_name: '', contact_phone: '', task_label: '', task_notes: '' };
+  const info = owner.ops_info || {};
+  const access = (info.access_directions || '').trim();
+  const general = (info.general_notes || '').trim();
+  let task_label = '', task_notes = '';
+  if (access && general) { task_label = 'Access'; task_notes = `${access}\n\n${general}`; }
+  else if (access)       { task_label = 'Access'; task_notes = access; }
+  else if (general)      { task_label = 'Task';   task_notes = general; }
+  return {
+    gate_code: info.gate_info || '',
+    contact_name: owner.owner_name || owner.name || '',
+    contact_phone: owner.phone || '',
+    task_label,
+    task_notes,
+  };
+}
+
 // Pure: returns the full stop list after moving `stopId` into (toWeek,toDay) at
 // position toIndex, plus the re-indexed target and source day lists. `toIndex`
 // is an index within the target day's list AFTER the moving card is removed.
@@ -150,8 +171,15 @@ function StopCard({ stop, crew, canEdit, canDrag, selectMode, selected, dragging
   );
 }
 
-export default function ScheduleBoard({ code, role, onClose }) {
+export default function ScheduleBoard({ code, role, owners = [], onClose }) {
   const canEdit = role === 'scout' || role === 'crew';
+
+  // owner_id -> owner, so a node being scheduled can inherit its Ops Info.
+  const ownerById = useMemo(() => {
+    const m = new Map();
+    for (const o of (owners || [])) m.set(o.id, o);
+    return m;
+  }, [owners]);
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -391,12 +419,15 @@ export default function ScheduleBoard({ code, role, onClose }) {
         let order = allStops.filter((s) => s.week_start_date === toWeek && s.day_date === toDay).length;
         for (const n of nodes) {
           order += 1;
+          // Carry the owner's map-side Ops Info (gate code, contact, notes)
+          // into the new stop so it isn't created blank.
+          const ops = stopFieldsFromOwner(n.owner_id != null ? ownerById.get(n.owner_id) : null);
           await api.upsertScheduleStop({
             code, week_start_date: toWeek, day_date: toDay, stop_order: order,
             action: action || 'deploy', node_number: n.node_number,
             owner_id: n.owner_id != null ? n.owner_id : null, owner_name: n.owner_name || '',
-            scheduled_time: '', gate_code: '', contact_name: '', contact_phone: '',
-            task_label: '', task_notes: '', crew_label: '',
+            scheduled_time: '', crew_label: '',
+            ...ops,
           });
         }
         await loadAll();

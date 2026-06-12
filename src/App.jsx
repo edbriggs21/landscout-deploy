@@ -545,7 +545,7 @@ export default function App() {
         onOpenBoard={() => setBoardOpen(true)}
       />
       {boardOpen && (
-        <ScheduleBoard code={code} role={role} onClose={() => setBoardOpen(false)} />
+        <ScheduleBoard code={code} role={role} owners={data.owners} onClose={() => setBoardOpen(false)} />
       )}
 {/* Drop-pin hint banner */}
       {(dropPinMode || pickStartMode) && (
